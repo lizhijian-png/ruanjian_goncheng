@@ -1,0 +1,11 @@
+{
+  "name": "task-buddy-miniprogram",
+  "version": "0.1.0",
+  "private": true,
+  "description": "微信小程序前端 + Express REST API + MySQL 的任务搭子平台",
+  "scripts": {
+    "lint": "echo \"请在微信开发者工具中运行代码检查\"",
+    "backend:install": "npm install --prefix backend",
+    "backend:start": "npm start --prefix backend"
+  }
+}

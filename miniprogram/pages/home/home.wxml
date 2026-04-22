@@ -1,0 +1,41 @@
+<view class="container">
+  <view class="hero-card home-hero">
+    <view>
+      <view class="tag">推荐流 · 实时任务广场</view>
+      <view class="headline">用公开承诺驱动任务完成</view>
+      <view class="section-subtitle">{{recommendLabel}}</view>
+    </view>
+    <button class="primary-btn quick-btn" bindtap="goPublish">发布任务贴</button>
+  </view>
+
+  <view class="grid-two score-grid">
+    <view class="section-card metric-card">
+      <view class="metric-value">{{scoreSummary.points}}</view>
+      <view class="muted">当前积分</view>
+    </view>
+    <view class="section-card metric-card">
+      <view class="metric-value">{{scoreSummary.completionRate}}%</view>
+      <view class="muted">任务完成率</view>
+    </view>
+  </view>
+
+  <view class="section-title">推荐任务贴</view>
+  <block wx:for="{{feed}}" wx:key="id">
+    <view class="post-card post-item" data-id="{{item.id}}" bindtap="goDetail">
+      <view class="post-header">
+        <view>
+          <view class="post-title">{{item.title}}</view>
+          <view class="muted">{{item.publisher}} · {{item.category}} · {{item.status}}</view>
+        </view>
+        <view class="score-chip">推荐 {{item.recommendedScore}}</view>
+      </view>
+      <view class="post-content">{{item.content}}</view>
+      <view class="post-meta-row">
+        <view class="meta-pill">+{{item.reward}} 积分</view>
+        <view class="meta-pill danger">-{{item.penalty}} 积分</view>
+        <view class="meta-pill">完成度 {{item.progress}}%</view>
+      </view>
+      <view class="muted small-text">聊天：{{item.partnerChat ? '开放' : '可关闭'}}｜互评：{{item.evaluationOpen ? '开放' : '关闭'}}</view>
+    </view>
+  </block>
+</view>

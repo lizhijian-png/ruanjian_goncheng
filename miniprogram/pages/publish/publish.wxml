@@ -1,0 +1,57 @@
+<view class="container">
+  <view class="form-card publish-card">
+    <view class="section-title">发布任务贴</view>
+    <view class="section-subtitle">支持设置积分奖惩、搭子聊天、互评开关和证据文本占位。</view>
+
+    <view class="field">
+      <view class="label">标题</view>
+      <input class="field-input" data-field="title" bindinput="onInput" placeholder="例如：21 天晨跑监督计划" placeholder-class="placeholder" />
+    </view>
+
+    <view class="field">
+      <view class="label">内容</view>
+      <textarea class="field-textarea" data-field="content" bindinput="onInput" placeholder="描述任务规则、完成时间、需要的搭子类型" placeholder-class="placeholder" />
+    </view>
+
+    <view class="grid-two">
+      <view class="field compact">
+        <view class="label">完成奖励</view>
+        <input class="field-input" type="number" data-field="reward" bindinput="onInput" value="{{form.reward}}" />
+      </view>
+      <view class="field compact">
+        <view class="label">未完成惩罚</view>
+        <input class="field-input" type="number" data-field="penalty" bindinput="onInput" value="{{form.penalty}}" />
+      </view>
+    </view>
+
+    <view class="field">
+      <view class="label">任务分类</view>
+      <picker mode="selector" range="{{categories}}" bindchange="onCategoryChange">
+        <view class="picker-box">{{form.category}}</view>
+      </picker>
+    </view>
+
+    <view class="switch-row">
+      <view>
+        <view class="label">开放搭子聊天</view>
+        <view class="muted">可选功能，便于互相监督</view>
+      </view>
+      <switch checked="{{form.partnerChat}}" data-field="partnerChat" bindchange="onSwitch" color="#38bdf8" />
+    </view>
+
+    <view class="switch-row">
+      <view>
+        <view class="label">开放互评</view>
+        <view class="muted">完成后双方可评分和评价</view>
+      </view>
+      <switch checked="{{form.evaluationOpen}}" data-field="evaluationOpen" bindchange="onSwitch" color="#f97316" />
+    </view>
+
+    <view class="field">
+      <view class="label">证据说明</view>
+      <textarea class="field-textarea short" data-field="evidenceText" bindinput="onInput" placeholder="例如：需上传截图 + 文字总结，图片上传后续接入云存储" placeholder-class="placeholder" />
+    </view>
+
+    <button class="primary-btn submit-btn" bindtap="submitPost">创建并发布</button>
+  </view>
+</view>

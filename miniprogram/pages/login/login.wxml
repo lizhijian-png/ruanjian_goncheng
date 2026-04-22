@@ -1,0 +1,18 @@
+<view class="container login-page">
+  <view class="hero-card login-card">
+    <view class="tag">微信小程序作业基础框架</view>
+    <view class="title">任务搭子 · 积分互助平台</view>
+    <view class="desc">围绕发帖、接帖、证据上传、积分奖惩、排行和个人主页构建的校园任务协作小程序。</view>
+
+    <view class="feature-list">
+      <block wx:for="{{features}}" wx:key="*this">
+        <view class="feature-item">{{item}}</view>
+      </block>
+    </view>
+
+    <view class="form-box">
+      <input class="nickname-input" placeholder="输入昵称快速体验" placeholder-class="placeholder" bindinput="onNicknameInput" />
+      <button class="primary-btn login-btn" bindtap="handleLogin" loading="{{loading}}">进入系统</button>
+    </view>
+  </view>
+</view>

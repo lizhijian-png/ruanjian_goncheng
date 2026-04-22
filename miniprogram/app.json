@@ -1,0 +1,40 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/home/home",
+    "pages/publish/publish",
+    "pages/ranking/ranking",
+    "pages/profile/profile",
+    "pages/post-detail/post-detail"
+  ],
+  "tabBar": {
+    "color": "#8b6f88",
+    "selectedColor": "#ff7a59",
+    "backgroundColor": "#fffaf4",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/home/home",
+        "text": "广场"
+      },
+      {
+        "pagePath": "pages/ranking/ranking",
+        "text": "排行"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的"
+      }
+    ]
+  },
+  "window": {
+    "navigationBarTitleText": "任务搭子",
+    "navigationBarBackgroundColor": "#fff7ed",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#fffaf4",
+    "backgroundTextStyle": "dark"
+  },
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents",
+  "sitemapLocation": "../sitemap.json"
+}

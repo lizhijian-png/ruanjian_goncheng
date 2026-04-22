@@ -1,0 +1,29 @@
+<view class="container" wx:if="{{post}}">
+  <view class="post-card detail-card">
+    <view class="tag">任务详情</view>
+    <view class="detail-title">{{post.title}}</view>
+    <view class="muted">发布者 {{post.publisher}} · 搭子 {{post.buddy}}</view>
+    <view class="detail-content">{{post.content}}</view>
+
+    <view class="detail-grid">
+      <view class="detail-chip">奖励 +{{post.reward}}</view>
+      <view class="detail-chip danger">惩罚 -{{post.penalty}}</view>
+      <view class="detail-chip">完成 {{post.progress}}%</view>
+      <view class="detail-chip">状态 {{post.status}}</view>
+    </view>
+
+    <view class="section-title detail-section">完成证据</view>
+    <block wx:for="{{evidenceList}}" wx:key="type">
+      <view class="evidence-item">{{item.type}}：{{item.value}}</view>
+    </block>
+
+    <view class="section-title detail-section">搭子判定与互评</view>
+    <button class="primary-btn judge-btn" bindtap="markDone">由搭子确认完成</button>
+    <block wx:for="{{evaluations}}" wx:key="from">
+      <view class="evaluation-item">
+        <view class="evaluation-head">{{item.from}} · {{item.score}} / 5</view>
+        <view class="muted">{{item.content}}</view>
+      </view>
+    </block>
+  </view>
+</view>

@@ -1,0 +1,61 @@
+.profile-header {
+  padding: 30rpx;
+  display: flex;
+  gap: 24rpx;
+  align-items: flex-start;
+  margin-bottom: 24rpx;
+  background: linear-gradient(135deg, rgba(255, 241, 230, 0.96), rgba(237, 248, 255, 0.96));
+}
+
+.avatar {
+  width: 136rpx;
+  height: 136rpx;
+  border-radius: 32rpx;
+  background: linear-gradient(135deg, rgba(255, 203, 213, 0.82), rgba(191, 229, 255, 0.88));
+}
+
+.profile-main {
+  flex: 1;
+}
+
+.profile-name {
+  font-size: 40rpx;
+  font-weight: 800;
+  margin-bottom: 8rpx;
+}
+
+.ai-box {
+  margin-top: 22rpx;
+  padding: 22rpx;
+  border-radius: 24rpx;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(255, 240, 245, 0.9));
+}
+
+.ai-text {
+  margin-top: 14rpx;
+  line-height: 1.7;
+}
+
+.operations-card {
+  padding: 30rpx;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.manage-btn {
+  margin-bottom: 24rpx;
+  height: 84rpx;
+  line-height: 84rpx;
+}
+
+.my-post {
+  padding: 24rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18rpx;
+  background: linear-gradient(180deg, rgba(255, 249, 245, 0.92), rgba(255, 255, 255, 0.9));
+}
+
+.delete-btn {
+  min-width: 120rpx;
+}

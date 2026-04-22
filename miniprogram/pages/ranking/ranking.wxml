@@ -1,0 +1,19 @@
+<view class="container">
+  <view class="section-card ranking-board">
+    <view class="section-title">实时积分排名</view>
+    <view class="section-subtitle">后续可改成云数据库实时监听，动态刷新榜单。</view>
+
+    <block wx:for="{{ranking}}" wx:key="id">
+      <view class="rank-card rank-item {{index < 3 ? 'top-rank' : ''}}">
+        <view class="rank-left">
+          <view class="rank-index">#{{index + 1}}</view>
+          <view>
+            <view class="rank-name">{{item.name}}</view>
+            <view class="muted">完成率 {{item.rate}}%</view>
+          </view>
+        </view>
+        <view class="rank-points">{{item.points}} 分</view>
+      </view>
+    </block>
+  </view>
+</view>
