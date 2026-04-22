@@ -9,7 +9,7 @@ App({
     techStack: {
       frontend: '微信原生小程序',
       backend: 'Express REST API',
-      database: 'SQLite',
+      database: 'MySQL',
       storage: '本地或第三方对象存储'
     }
   },
