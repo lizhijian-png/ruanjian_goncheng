@@ -1,0 +1,33 @@
+@startuml
+left to right direction
+actor "普通用户" as User
+actor "任务发起方" as Initiator
+actor "任务参与方" as Participant
+
+' 账号管理模块 R01-R02
+User --> (注册账号) : R01
+User --> (登录账号) : R02
+
+' 帖子管理模块 R03-R05
+Initiator --> (发布任务贴) : R03
+User --> (查看他人帖子) : R04
+Initiator --> (删除自己帖子) : R05
+
+' 搭子互动 R10-R14
+User --> (搭子聊天) : R10
+User --> (上传任务证据) : R11
+Participant --> (搭子判定任务) : R12
+User --> (搭子互相评价) : R13
+User --> (系统智能推荐) : R14
+
+' 积分系统 R06-R09
+User --> (完成任务得积分) : R06
+User --> (未完成扣积分) : R07
+User --> (查看积分排名) : R08
+User --> (查看任务完成率) : R09
+
+' 个人主页 R15-R17
+User --> (个人主页管理) : R15
+User --> (展示个人积分) : R16
+User --> (AI自动评价) : R17
+@enduml

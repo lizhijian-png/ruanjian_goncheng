@@ -1,0 +1,14 @@
+@startuml
+actor 用户 as User
+control 帖子控制层 as PostCtrl
+entity 帖子数据 as PostDB
+
+User -> PostCtrl : 请求发布任务贴(标题/内容/要求)
+activate PostCtrl
+PostCtrl -> PostDB : 保存任务贴数据
+activate PostDB
+PostDB --> PostCtrl : 保存成功
+deactivate PostDB
+PostCtrl --> User : 返回发布成功/展示帖子
+deactivate PostCtrl
+@enduml

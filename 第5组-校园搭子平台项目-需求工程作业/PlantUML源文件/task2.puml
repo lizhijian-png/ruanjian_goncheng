@@ -1,0 +1,36 @@
+@startuml
+
+actor 用户 as User
+control 任务控制层 as TaskCtrl
+control 积分控制层 as ScoreCtrl
+entity 任务数据 as TaskDB
+entity 积分数据 as ScoreDB
+
+' 上传证据 R11
+User -> TaskCtrl : 上传任务证据(图片/文字)
+activate TaskCtrl
+TaskCtrl -> TaskDB : 保存证据
+activate TaskDB
+TaskDB --> TaskCtrl : 证据保存成功
+deactivate TaskDB
+
+' 搭子判定 R12
+User -> TaskCtrl : 搭子确认任务完成/未完成
+TaskCtrl -> TaskDB : 更新任务状态
+activate TaskDB
+TaskDB --> TaskCtrl : 状态更新成功
+deactivate TaskDB
+
+' 积分更新 R06/R07
+TaskCtrl -> ScoreCtrl : 触发积分计算
+activate ScoreCtrl
+ScoreCtrl -> ScoreDB : 增加/扣除积分
+activate ScoreDB
+ScoreDB --> ScoreCtrl : 积分更新成功
+deactivate ScoreDB
+ScoreCtrl --> TaskCtrl : 返回积分结果
+deactivate ScoreCtrl
+
+TaskCtrl --> User : 返回任务完成+积分变更通知
+deactivate TaskCtrl
+@enduml
