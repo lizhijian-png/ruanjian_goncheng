@@ -15,13 +15,16 @@ App({
   },
   onLaunch() {
     const userInfo = wx.getStorageSync('userInfo');
-    if (userInfo) {
+    const token = wx.getStorageSync('token');
+    if (userInfo && token) {
       this.globalData.userInfo = userInfo;
       this.globalData.scoreSummary = {
         points: userInfo.points || 0,
         completionRate: userInfo.completionRate || 0,
         rank: userInfo.rank || '-'
       };
+      // 已登录：跳过登录页直接进首页
+      wx.reLaunch({ url: '/pages/home/home' });
     }
   }
 });

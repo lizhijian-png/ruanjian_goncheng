@@ -3,7 +3,11 @@ const api = require('../../services/api');
 Page({
   data: {
     user: {},
-    posts: []
+    posts: [],
+    settingsVisible: false,
+    editNickname: '',
+    editAvatarUrl: '',
+    saving: false
   },
   async onShow() {
     const app = getApp();
@@ -31,6 +35,10 @@ Page({
   goPublish() {
     wx.navigateTo({ url: '/pages/publish/publish' });
   },
+  goPostDetail(event) {
+    const { id } = event.currentTarget.dataset;
+    wx.navigateTo({ url: `/pages/post-detail/post-detail?id=${id}` });
+  },
   async deletePost(event) {
     const { id } = event.currentTarget.dataset;
 
@@ -42,6 +50,70 @@ Page({
       wx.showToast({ title: '帖子已删除', icon: 'none' });
     } catch (error) {
       wx.showToast({ title: error.message || '删除失败', icon: 'none' });
+    }
+  },
+  openSettings() {
+    this.setData({
+      settingsVisible: true,
+      editNickname: this.data.user.nickname,
+      editAvatarUrl: this.data.user.avatarUrl
+    });
+  },
+  closeSettings() {
+    this.setData({ settingsVisible: false });
+  },
+  onNicknameInput(e) {
+    this.setData({ editNickname: e.detail.value });
+  },
+  pickAvatar() {
+    wx.chooseMedia({
+      count: 1,
+      mediaType: ['image'],
+      sourceType: ['album', 'camera'],
+      success: (res) => {
+        const tempPath = res.tempFiles[0].tempFilePath;
+        wx.getFileSystemManager().readFile({
+          filePath: tempPath,
+          encoding: 'base64',
+          success: (fileRes) => {
+            const ext = tempPath.split('.').pop().toLowerCase() || 'jpeg';
+            const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+            this.setData({ editAvatarUrl: `data:${mime};base64,${fileRes.data}` });
+          },
+          fail: () => {
+            wx.showToast({ title: '读取图片失败', icon: 'none' });
+          }
+        });
+      }
+    });
+  },
+  async saveSettings() {
+    const nickname = this.data.editNickname.trim();
+    if (!nickname) {
+      wx.showToast({ title: '昵称不能为空', icon: 'none' });
+      return;
+    }
+
+    this.setData({ saving: true });
+    try {
+      const userId = this.data.user.id;
+      const result = await api.updateProfile(userId, {
+        nickname,
+        avatarUrl: this.data.editAvatarUrl
+      });
+
+      const app = getApp();
+      app.globalData.userInfo = result.user;
+      wx.setStorageSync('userInfo', result.user);
+      this.setData({
+        user: result.user,
+        settingsVisible: false
+      });
+      wx.showToast({ title: '保存成功', icon: 'success' });
+    } catch (error) {
+      wx.showToast({ title: error.message || '保存失败', icon: 'none' });
+    } finally {
+      this.setData({ saving: false });
     }
   }
 });

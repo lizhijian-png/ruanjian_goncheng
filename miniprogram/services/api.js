@@ -22,16 +22,31 @@ function request({ url, method = 'GET', data }) {
   });
 }
 
-function login(nickname) {
+function login({ code }) {
   return request({
     url: '/api/auth/login',
     method: 'POST',
-    data: { nickname }
+    data: { code }
   });
 }
 
-function getFeed() {
-  return request({ url: '/api/posts' });
+function bind({ code, nickname, avatarUrl }) {
+  return request({
+    url: '/api/auth/bind',
+    method: 'POST',
+    data: { code, nickname, avatarUrl }
+  });
+}
+
+function getFeed({ category = '', startAfter = '', endBefore = '', keyword = '', page = 1, pageSize = 10 } = {}) {
+  const params = [];
+  if (category) params.push(`category=${encodeURIComponent(category)}`);
+  if (startAfter) params.push(`startAfter=${encodeURIComponent(startAfter)}`);
+  if (endBefore) params.push(`endBefore=${encodeURIComponent(endBefore)}`);
+  if (keyword) params.push(`keyword=${encodeURIComponent(keyword)}`);
+  params.push(`page=${page}`);
+  params.push(`pageSize=${pageSize}`);
+  return request({ url: `/api/posts?${params.join('&')}` });
 }
 
 function getPostDetail(id) {
@@ -69,21 +84,77 @@ function deletePost(id) {
   });
 }
 
-function completePost(id) {
+function completePost(id, userId) {
   return request({
     url: `/api/posts/${id}/complete`,
-    method: 'POST'
+    method: 'POST',
+    data: { userId }
+  });
+}
+
+function submitEvidence(postId, userId, content) {
+  return request({
+    url: `/api/posts/${postId}/evidence`,
+    method: 'POST',
+    data: { userId, content }
+  });
+}
+
+function joinPost(id, userId) {
+  return request({
+    url: `/api/posts/${id}/join`,
+    method: 'POST',
+    data: { userId }
+  });
+}
+
+function quitPost(id, userId) {
+  return request({
+    url: `/api/posts/${id}/quit`,
+    method: 'POST',
+    data: { userId }
+  });
+}
+
+function abandonPost(id, userId) {
+  return request({
+    url: `/api/posts/${id}/abandon`,
+    method: 'POST',
+    data: { userId }
+  });
+}
+
+function submitEvaluation(postId, userId, score, content) {
+  return request({
+    url: `/api/posts/${postId}/evaluate`,
+    method: 'POST',
+    data: { userId, score, content }
+  });
+}
+
+function updateProfile(userId, payload) {
+  return request({
+    url: `/api/users/${userId}/profile`,
+    method: 'PUT',
+    data: payload
   });
 }
 
 module.exports = {
   login,
+  bind,
   getFeed,
   getPostDetail,
   getRanking,
   getProfile,
+  updateProfile,
   createPost,
   updatePost,
   deletePost,
-  completePost
+  completePost,
+  submitEvidence,
+  joinPost,
+  quitPost,
+  abandonPost,
+  submitEvaluation
 };

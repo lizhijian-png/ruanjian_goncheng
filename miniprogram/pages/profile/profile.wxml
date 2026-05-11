@@ -1,4 +1,5 @@
 <view class="container">
+  <!-- 个人信息卡片 -->
   <view class="profile-card profile-header">
     <image class="avatar" src="{{user.avatarUrl}}" mode="aspectFill" />
     <view class="profile-main">
@@ -9,19 +10,59 @@
         <view class="ai-text">{{user.aiComment}}</view>
       </view>
     </view>
+    <!-- 右上角设置图标 -->
+    <view class="settings-icon" bindtap="openSettings">
+      <view class="settings-dot"></view>
+      <view class="settings-dot"></view>
+      <view class="settings-dot"></view>
+    </view>
   </view>
 
+  <!-- 我的帖子 -->
   <view class="section-card operations-card">
     <view class="section-title">我的帖子操作</view>
     <button class="primary-btn manage-btn" bindtap="goPublish">继续创建帖子</button>
     <block wx:for="{{posts}}" wx:key="id">
-      <view class="post-card my-post">
+      <view class="post-card my-post" data-id="{{item.id}}" bindtap="goPostDetail">
         <view>
           <view class="post-title">{{item.title}}</view>
           <view class="muted">{{item.status}} · +{{item.reward}} / -{{item.penalty}}</view>
         </view>
-        <button class="ghost-btn delete-btn" size="mini" data-id="{{item.id}}" bindtap="deletePost">删除</button>
+        <button class="ghost-btn delete-btn" size="mini" data-id="{{item.id}}" catchtap="deletePost">删除</button>
       </view>
     </block>
   </view>
+</view>
+
+<!-- 遮罩 -->
+<view class="modal-mask {{settingsVisible ? 'mask-visible' : ''}}" bindtap="closeSettings"></view>
+
+<!-- 设置弹窗 -->
+<view class="settings-modal {{settingsVisible ? 'modal-visible' : ''}}">
+  <view class="modal-header">
+    <view class="modal-title">编辑个人信息</view>
+    <view class="modal-close" bindtap="closeSettings">×</view>
+  </view>
+
+  <view class="modal-section">
+    <view class="modal-label">头像</view>
+    <view class="avatar-picker" bindtap="pickAvatar">
+      <image class="avatar-preview" src="{{editAvatarUrl || user.avatarUrl}}" mode="aspectFill" />
+      <view class="avatar-hint">点击更换</view>
+    </view>
+  </view>
+
+  <view class="modal-section">
+    <view class="modal-label">昵称</view>
+    <input
+      class="modal-input"
+      value="{{editNickname}}"
+      placeholder="输入新昵称"
+      placeholder-class="placeholder"
+      bindinput="onNicknameInput"
+      maxlength="20"
+    />
+  </view>
+
+  <button class="primary-btn save-btn" bindtap="saveSettings" loading="{{saving}}">保存</button>
 </view>

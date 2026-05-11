@@ -17,12 +17,43 @@
 .quick-btn {
   width: 220rpx;
   height: 86rpx;
-  line-height: 86rpx;
   font-size: 28rpx;
 }
 
 .score-grid {
-  margin-bottom: 28rpx;
+  margin-bottom: 20rpx;
+}
+
+/* ===== 搜索框 ===== */
+.search-bar {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1rpx solid rgba(255, 122, 89, 0.18);
+  border-radius: 999rpx;
+  padding: 0 24rpx;
+  height: 76rpx;
+  margin-bottom: 24rpx;
+  gap: 12rpx;
+}
+
+.search-icon {
+  font-size: 28rpx;
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  font-size: 28rpx;
+  height: 76rpx;
+  color: #333;
+}
+
+.search-clear {
+  font-size: 28rpx;
+  color: #bbb;
+  padding: 0 4rpx;
+  flex-shrink: 0;
 }
 
 .metric-card {
@@ -37,6 +68,64 @@
   color: #ff6b8b;
 }
 
+/* ===== 列表标题行 ===== */
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20rpx;
+}
+
+.filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 10rpx 24rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1rpx solid rgba(255, 122, 89, 0.2);
+  font-size: 24rpx;
+  color: #888;
+  max-width: 280rpx;
+  overflow: hidden;
+}
+
+.filter-btn-active {
+  background: rgba(255, 122, 89, 0.1);
+  border-color: rgba(255, 122, 89, 0.5);
+  color: #ff7a59;
+}
+
+.filter-icon {
+  font-size: 26rpx;
+  flex-shrink: 0;
+}
+
+/* ===== 已激活筛选标签 ===== */
+.active-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 122, 89, 0.08);
+  border-radius: 16rpx;
+  padding: 14rpx 24rpx;
+  margin-bottom: 20rpx;
+}
+
+.active-filter-text {
+  font-size: 24rpx;
+  color: #ff7a59;
+  flex: 1;
+}
+
+.active-filter-clear {
+  font-size: 24rpx;
+  color: #aaa;
+  padding-left: 20rpx;
+  flex-shrink: 0;
+}
+
+/* ===== 帖子卡片 ===== */
 .post-item {
   padding: 28rpx;
   margin-bottom: 20rpx;
@@ -90,4 +179,136 @@
 
 .small-text {
   font-size: 22rpx;
+}
+
+/* ===== 底部状态 ===== */
+.list-footer {
+  text-align: center;
+  font-size: 24rpx;
+  color: #bbb;
+  padding: 24rpx 0 40rpx;
+}
+
+.empty-tip {
+  text-align: center;
+  font-size: 26rpx;
+  color: #bbb;
+  padding: 80rpx 0;
+}
+
+/* ===== 筛选遮罩 ===== */
+.filter-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
+
+.filter-mask.mask-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ===== 筛选面板 ===== */
+.filter-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: #fffaf4;
+  border-radius: 36rpx 36rpx 0 0;
+  padding: 36rpx 36rpx 60rpx;
+  z-index: 101;
+  box-sizing: border-box;
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+.filter-panel.panel-visible {
+  transform: translateY(0);
+}
+
+.filter-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 36rpx;
+}
+
+.filter-panel-title {
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.filter-panel-close {
+  font-size: 48rpx;
+  color: #aaa;
+  line-height: 1;
+  padding: 0 8rpx;
+}
+
+/* ===== 筛选区块 ===== */
+.filter-section {
+  margin-bottom: 32rpx;
+}
+
+.filter-section-label {
+  font-size: 26rpx;
+  color: #888;
+  margin-bottom: 16rpx;
+}
+
+/* 分类标签 */
+.filter-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.filter-tag {
+  padding: 12rpx 28rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid rgba(255, 122, 89, 0.2);
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 26rpx;
+  color: #555;
+}
+
+.filter-tag-active {
+  background: rgba(255, 122, 89, 0.12);
+  border-color: #ff7a59;
+  color: #ff7a59;
+  font-weight: 700;
+}
+
+/* 日期选择 */
+.filter-date-box {
+  padding: 20rpx 24rpx;
+  border-radius: 18rpx;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1rpx solid rgba(255, 122, 89, 0.18);
+  font-size: 28rpx;
+  color: #333;
+}
+
+.filter-date-box.placeholder {
+  color: #aaa;
+}
+
+/* 操作按钮 */
+.filter-actions {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 12rpx;
+}
+
+.filter-action-btn {
+  flex: 1;
+  height: 88rpx;
 }

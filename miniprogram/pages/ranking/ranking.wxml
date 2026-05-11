@@ -1,19 +1,69 @@
 <view class="container">
-  <view class="section-card ranking-board">
-    <view class="section-title">实时积分排名</view>
-    <view class="section-subtitle">后续可改成云数据库实时监听，动态刷新榜单。</view>
+  <view class="page-header">
+    <text class="page-title">积分排行榜</text>
+    <text class="page-sub">实时更新</text>
+  </view>
 
-    <block wx:for="{{ranking}}" wx:key="id">
-      <view class="rank-card rank-item {{index < 3 ? 'top-rank' : ''}}">
-        <view class="rank-left">
-          <view class="rank-index">#{{index + 1}}</view>
-          <view>
-            <view class="rank-name">{{item.name}}</view>
-            <view class="muted">完成率 {{item.rate}}%</view>
+  <!-- 领奖台：前3名 -->
+  <view class="podium-section" wx:if="{{top3.length > 0}}">
+    <!-- 第2名（左） -->
+    <view class="podium-item podium-2" wx:if="{{top3[1]}}">
+      <view class="podium-avatar-wrap rank-2-wrap">
+        <image class="podium-avatar" src="{{top3[1].avatarUrl || ''}}" mode="aspectFill" />
+        <view class="podium-badge rank-2-badge">2</view>
+      </view>
+      <view class="podium-name">{{top3[1].name}}</view>
+      <view class="podium-points">{{top3[1].points}}<text class="points-unit">分</text></view>
+      <view class="podium-block podium-block-2">
+        <text class="podium-rank-label">🥈</text>
+      </view>
+    </view>
+
+    <!-- 第1名（中） -->
+    <view class="podium-item podium-1" wx:if="{{top3[0]}}">
+      <view class="crown">👑</view>
+      <view class="podium-avatar-wrap rank-1-wrap">
+        <image class="podium-avatar podium-avatar-lg" src="{{top3[0].avatarUrl || ''}}" mode="aspectFill" />
+        <view class="podium-badge rank-1-badge">1</view>
+      </view>
+      <view class="podium-name podium-name-lg">{{top3[0].name}}</view>
+      <view class="podium-points podium-points-lg">{{top3[0].points}}<text class="points-unit">分</text></view>
+      <view class="podium-block podium-block-1">
+        <text class="podium-rank-label">🥇</text>
+      </view>
+    </view>
+
+    <!-- 第3名（右） -->
+    <view class="podium-item podium-3" wx:if="{{top3[2]}}">
+      <view class="podium-avatar-wrap rank-3-wrap">
+        <image class="podium-avatar" src="{{top3[2].avatarUrl || ''}}" mode="aspectFill" />
+        <view class="podium-badge rank-3-badge">3</view>
+      </view>
+      <view class="podium-name">{{top3[2].name}}</view>
+      <view class="podium-points">{{top3[2].points}}<text class="points-unit">分</text></view>
+      <view class="podium-block podium-block-3">
+        <text class="podium-rank-label">🥉</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 4名以后列表 -->
+  <view class="list-section" wx:if="{{restRanking.length > 0}}">
+    <block wx:for="{{restRanking}}" wx:key="id">
+      <view class="rank-row">
+        <view class="rank-row-left">
+          <view class="rank-num">{{index + 4}}</view>
+          <view class="rank-row-info">
+            <view class="rank-row-name">{{item.name}}</view>
+            <view class="rank-row-rate">完成率 {{item.rate}}%</view>
           </view>
         </view>
-        <view class="rank-points">{{item.points}} 分</view>
+        <view class="rank-row-points">{{item.points}}<text class="points-unit-sm">分</text></view>
       </view>
     </block>
+  </view>
+
+  <view class="empty-tip" wx:if="{{ranking.length === 0}}">
+    <text>暂无排行数据</text>
   </view>
 </view>

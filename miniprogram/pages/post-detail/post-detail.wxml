@@ -2,7 +2,7 @@
   <view class="post-card detail-card">
     <view class="tag">任务详情</view>
     <view class="detail-title">{{post.title}}</view>
-    <view class="muted">发布者 {{post.publisher}} · 搭子 {{post.buddy}}</view>
+    <view class="muted">发布者 {{post.publisher}} · {{post.category}}</view>
     <view class="detail-content">{{post.content}}</view>
 
     <view class="detail-grid">
@@ -10,15 +10,94 @@
       <view class="detail-chip danger">惩罚 -{{post.penalty}}</view>
       <view class="detail-chip">完成 {{post.progress}}%</view>
       <view class="detail-chip">状态 {{post.status}}</view>
+      <view class="detail-chip">搭子 {{post.currentBuddies}}/{{post.maxBuddies}}</view>
+      <view class="detail-chip" wx:if="{{post.startTime}}">开始 {{post.startTime}}</view>
+      <view class="detail-chip" wx:if="{{post.endTime}}">结束 {{post.endTime}}</view>
     </view>
 
+    <!-- 搭子列表 -->
+    <view class="section-title detail-section">当前搭子</view>
+    <view wx:if="{{buddies.length === 0}}" class="muted empty-hint">暂无搭子，快来加入吧</view>
+    <block wx:for="{{buddies}}" wx:key="userId">
+      <view class="buddy-item">
+        <view class="buddy-name">{{item.nickname}}</view>
+        <view class="muted buddy-time">{{item.joinedAt}}</view>
+      </view>
+    </block>
+
+    <!-- 操作按钮区 -->
+    <view class="action-area">
+      <!-- 游客/非搭子：招募中可加入 -->
+      <button wx:if="{{canJoin}}" class="primary-btn action-btn" bindtap="joinTask">加入任务</button>
+      <!-- 搭子：招募中或进行中可退出 -->
+      <button wx:if="{{isBuddy && (post.status === '招募中' || post.status === '进行中')}}" class="ghost-btn action-btn" bindtap="quitTask">退出任务</button>
+      <!-- 发布者：进行中可标记完成 -->
+      <button wx:if="{{isPublisher && post.status === '进行中'}}" class="primary-btn action-btn" bindtap="markDone">标记完成 → 进入待评价</button>
+      <!-- 参与者：待评价且满足条件可提交互评 -->
+      <button wx:if="{{canEvaluate}}" class="primary-btn action-btn" bindtap="openEvalForm">提交互评</button>
+      <!-- 已评价提示 -->
+      <view wx:if="{{(isPublisher || isBuddy) && post.status === '待评价' && myEvaluated}}" class="eval-done-hint">你已提交评价，等待对方评价中…</view>
+      <!-- 发布者：招募中或进行中可放弃 -->
+      <button wx:if="{{canAbandon}}" class="danger-btn action-btn" bindtap="abandonTask">放弃任务</button>
+    </view>
+
+    <!-- 完成证据 -->
     <view class="section-title detail-section">完成证据</view>
-    <block wx:for="{{evidenceList}}" wx:key="type">
+    <view wx:if="{{evidenceList.length === 0}}" class="muted empty-hint">暂无证据</view>
+    <block wx:for="{{evidenceList}}" wx:key="index">
       <view class="evidence-item">{{item.type}}：{{item.value}}</view>
     </block>
 
-    <view class="section-title detail-section">搭子判定与互评</view>
-    <button class="primary-btn judge-btn" bindtap="markDone">由搭子确认完成</button>
+    <!-- 提交证据入口 -->
+    <view wx:if="{{canSubmitEvidence && !showEvidenceForm}}" class="evidence-submit-entry">
+      <button class="ghost-btn action-btn" bindtap="openEvidenceForm">+ 提交文字证据</button>
+    </view>
+    <view wx:if="{{showEvidenceForm}}" class="evidence-form">
+      <view class="label">证据内容</view>
+      <textarea
+        class="evidence-textarea"
+        placeholder="描述你的完成情况..."
+        placeholder-class="placeholder"
+        bindinput="onEvidenceInput"
+        value="{{evidenceInput}}"
+      />
+      <view class="evidence-form-btns">
+        <button class="ghost-btn evidence-btn" bindtap="closeEvidenceForm">取消</button>
+        <button class="primary-btn evidence-btn" bindtap="submitEvidence">提交</button>
+      </view>
+    </view>
+
+    <!-- 互评表单 -->
+    <view wx:if="{{showEvalForm}}" class="eval-form">
+      <view class="section-title">提交互评</view>
+      <view class="eval-score-row">
+        <view class="label">评分：{{evalScore}} 分</view>
+        <slider
+          class="eval-slider"
+          min="1" max="5" step="1"
+          value="{{evalScore}}"
+          show-value="{{false}}"
+          activeColor="#f97316"
+          bindchange="onEvalScoreChange"
+        />
+      </view>
+      <view class="label">评价内容</view>
+      <textarea
+        class="evidence-textarea"
+        placeholder="描述对方的完成情况和配合度..."
+        placeholder-class="placeholder"
+        bindinput="onEvalContentInput"
+        value="{{evalContent}}"
+      />
+      <view class="evidence-form-btns">
+        <button class="ghost-btn evidence-btn" bindtap="closeEvalForm">取消</button>
+        <button class="primary-btn evidence-btn" bindtap="submitEvaluation">提交</button>
+      </view>
+    </view>
+
+    <!-- 互评记录 -->
+    <view class="section-title detail-section">互评记录</view>
+    <view wx:if="{{evaluations.length === 0}}" class="muted empty-hint">暂无评价</view>
     <block wx:for="{{evaluations}}" wx:key="from">
       <view class="evaluation-item">
         <view class="evaluation-head">{{item.from}} · {{item.score}} / 5</view>

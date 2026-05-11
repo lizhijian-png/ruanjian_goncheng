@@ -1,0 +1,25 @@
+SET NAMES utf8mb4;
+
+-- evaluations 表加 fromId（兼容 MySQL 5.7）
+SET @col = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'evaluations' AND COLUMN_NAME = 'fromId');
+SET @sql = IF(@col = 0,
+  'ALTER TABLE evaluations ADD COLUMN fromId VARCHAR(64) NULL AFTER postId',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- posts 表加 publisherEvaluated
+SET @col2 = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'posts' AND COLUMN_NAME = 'publisherEvaluated');
+SET @sql2 = IF(@col2 = 0,
+  'ALTER TABLE posts ADD COLUMN publisherEvaluated TINYINT(1) NOT NULL DEFAULT 0',
+  'SELECT 1');
+PREPARE stmt FROM @sql2; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- posts 表加 buddyEvaluated
+SET @col3 = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'posts' AND COLUMN_NAME = 'buddyEvaluated');
+SET @sql3 = IF(@col3 = 0,
+  'ALTER TABLE posts ADD COLUMN buddyEvaluated TINYINT(1) NOT NULL DEFAULT 0',
+  'SELECT 1');
+PREPARE stmt FROM @sql3; EXECUTE stmt; DEALLOCATE PREPARE stmt;

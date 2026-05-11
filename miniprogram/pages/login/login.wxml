@@ -10,9 +10,35 @@
       </block>
     </view>
 
-    <view class="form-box">
-      <input class="nickname-input" placeholder="输入昵称快速体验" placeholder-class="placeholder" bindinput="onNicknameInput" />
-      <button class="primary-btn login-btn" bindtap="handleLogin" loading="{{loading}}">进入系统</button>
+    <!-- 阶段一：首次进入，只显示微信登录按钮 -->
+    <view wx:if="{{!showBindUI}}" class="form-box">
+      <button class="primary-btn login-btn" bindtap="handleLogin" loading="{{loading}}">微信登录</button>
+    </view>
+
+    <!-- 阶段二：首次用户，补充头像和昵称 -->
+    <view wx:else class="form-box">
+      <view class="bind-tip">首次登录，请授权头像和昵称</view>
+
+      <view class="avatar-row">
+        <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+          <image wx:if="{{avatarUrl}}" class="avatar-img" src="{{avatarUrl}}" mode="aspectFill" />
+          <view wx:else class="avatar-placeholder">
+            <text class="avatar-placeholder-text">点击选择头像</text>
+          </view>
+        </button>
+      </view>
+
+      <input
+        class="nickname-input"
+        type="nickname"
+        placeholder="点击填写昵称"
+        placeholder-class="placeholder"
+        value="{{nickname}}"
+        bindinput="onNicknameInput"
+        bindblur="onNicknameBlur"
+      />
+
+      <button class="primary-btn login-btn" bindtap="handleBind" loading="{{loading}}">完成绑定</button>
     </view>
   </view>
 </view>

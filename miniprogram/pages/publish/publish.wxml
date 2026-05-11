@@ -25,10 +25,48 @@
     </view>
 
     <view class="field">
+      <view class="label">搭子人数上限</view>
+      <view class="buddy-limit-row">
+        <view class="buddy-limit-btn" bindtap="decMaxBuddies">－</view>
+        <view class="buddy-limit-val">{{form.maxBuddies}}</view>
+        <view class="buddy-limit-btn" bindtap="incMaxBuddies">＋</view>
+        <view class="muted buddy-limit-hint">人满后自动开始任务</view>
+      </view>
+    </view>
+
+    <view class="field">
       <view class="label">任务分类</view>
       <picker mode="selector" range="{{categories}}" bindchange="onCategoryChange">
         <view class="picker-box">{{form.category}}</view>
       </picker>
+    </view>
+
+    <view class="field">
+      <view class="label">开始时间</view>
+      <view class="time-row">
+        <picker mode="date" value="{{startDate}}" start="{{todayDate}}" bindchange="onStartDateChange">
+          <view class="picker-box time-picker {{startDate ? '' : 'placeholder'}}">
+            {{startDate || '选择日期'}}
+          </view>
+        </picker>
+        <picker mode="selector" range="{{hours}}" value="{{startHourIndex}}" bindchange="onStartHourChange">
+          <view class="picker-box time-picker">{{hours[startHourIndex]}}</view>
+        </picker>
+      </view>
+    </view>
+
+    <view class="field">
+      <view class="label">结束时间</view>
+      <view class="time-row">
+        <picker mode="date" value="{{endDate}}" start="{{startDate || todayDate}}" bindchange="onEndDateChange">
+          <view class="picker-box time-picker {{endDate ? '' : 'placeholder'}}">
+            {{endDate || '选择日期'}}
+          </view>
+        </picker>
+        <picker mode="selector" range="{{hours}}" value="{{endHourIndex}}" bindchange="onEndHourChange">
+          <view class="picker-box time-picker">{{hours[endHourIndex]}}</view>
+        </picker>
+      </view>
     </view>
 
     <view class="switch-row">
