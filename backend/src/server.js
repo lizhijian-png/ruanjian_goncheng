@@ -154,17 +154,18 @@ app.get('/api/posts', async (req, res, next) => {
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const whereClause = where ? ` ${where}` : '';
 
     const countRows = await query(
-      `SELECT COUNT(*) AS total FROM posts p LEFT JOIN users u ON p.publisherId = u.id ${where}`,
+      `SELECT COUNT(*) AS total FROM posts p LEFT JOIN users u ON p.publisherId = u.id${whereClause}`,
       params
     );
     const total = countRows[0].total;
 
     const rows = await query(
       `SELECT p.*, u.avatarUrl AS publisherAvatarUrl
-       FROM posts p LEFT JOIN users u ON p.publisherId = u.id
-       ${where} ORDER BY p.createdAt DESC LIMIT ? OFFSET ?`,
+       FROM posts p LEFT JOIN users u ON p.publisherId = u.id${whereClause}
+       ORDER BY p.createdAt DESC LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]
     );
 
