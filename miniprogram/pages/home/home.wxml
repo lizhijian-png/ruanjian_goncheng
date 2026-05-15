@@ -56,12 +56,14 @@
           <view class="post-title">{{item.title}}</view>
           <view class="muted">{{item.category}} · {{item.status}}</view>
         </view>
-        <view class="score-chip">推荐 {{item.recommendedScore}}</view>
-        <image
-          class="post-publisher-avatar"
-          src="{{item.publisherAvatarUrl}}"
-          mode="aspectFill"
-        />
+        <view class="post-header-right">
+          <image
+            class="post-publisher-avatar"
+            src="{{item.publisherAvatarUrl}}"
+            mode="aspectFill"
+          />
+          <view class="score-chip">推荐 {{item.recommendedScore}}</view>
+        </view>
       </view>
       <view class="post-content">{{item.content}}</view>
       <view class="post-meta-row">

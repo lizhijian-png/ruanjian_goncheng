@@ -313,11 +313,16 @@
   height: 88rpx;
 }
 
-/* ===== 发布者头像（卡片右上角悬浮） ===== */
+/* ===== 帖子卡片右侧列（头像 + 推荐分数） ===== */
+.post-header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12rpx;
+  flex-shrink: 0;
+}
+
 .post-publisher-avatar {
-  position: absolute;
-  top: 20rpx;
-  right: 20rpx;
   width: 80rpx;
   height: 80rpx;
   border-radius: 50%;
