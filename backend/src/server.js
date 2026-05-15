@@ -182,7 +182,12 @@ app.get('/api/posts', async (req, res, next) => {
 
 app.get('/api/posts/:id', async (req, res, next) => {
   try {
-    const postRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
+    const postRows = await query(
+      `SELECT p.*, u.avatarUrl AS publisherAvatarUrl
+       FROM posts p LEFT JOIN users u ON p.publisherId = u.id
+       WHERE p.id = ?`,
+      [req.params.id]
+    );
     const postRow = postRows[0];
 
     if (!postRow) {
