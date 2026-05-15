@@ -137,29 +137,34 @@ app.get('/api/posts', async (req, res, next) => {
     const params = [];
 
     if (category) {
-      conditions.push('category = ?');
+      conditions.push('p.category = ?');
       params.push(category);
     }
     if (startAfter) {
-      conditions.push('startTime >= ?');
+      conditions.push('p.startTime >= ?');
       params.push(startAfter);
     }
     if (endBefore) {
-      conditions.push('endTime <= ?');
+      conditions.push('p.endTime <= ?');
       params.push(endBefore + ' 23:59:59');
     }
     if (keyword) {
-      conditions.push('(title LIKE ? OR publisherName LIKE ?)');
+      conditions.push('(p.title LIKE ? OR p.publisherName LIKE ?)');
       params.push(`%${keyword}%`, `%${keyword}%`);
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const countRows = await query(`SELECT COUNT(*) AS total FROM posts ${where}`, params);
+    const countRows = await query(
+      `SELECT COUNT(*) AS total FROM posts p LEFT JOIN users u ON p.publisherId = u.id ${where}`,
+      params
+    );
     const total = countRows[0].total;
 
     const rows = await query(
-      `SELECT * FROM posts ${where} ORDER BY createdAt DESC LIMIT ${pageSize} OFFSET ${offset}`,
+      `SELECT p.*, u.avatarUrl AS publisherAvatarUrl
+       FROM posts p LEFT JOIN users u ON p.publisherId = u.id
+       ${where} ORDER BY p.createdAt DESC LIMIT ${pageSize} OFFSET ${offset}`,
       params
     );
 
