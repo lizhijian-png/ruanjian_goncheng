@@ -1,8 +1,18 @@
 <view class="container" wx:if="{{post}}">
   <view class="post-card detail-card">
     <view class="tag">任务详情</view>
+    <view class="publisher-bar">
+      <image
+        class="publisher-avatar"
+        src="{{post.publisherAvatarUrl}}"
+        mode="aspectFill"
+      />
+      <view class="publisher-info">
+        <view class="publisher-name">{{post.publisher}}</view>
+        <view class="publisher-category">{{post.category}}</view>
+      </view>
+    </view>
     <view class="detail-title">{{post.title}}</view>
-    <view class="muted">发布者 {{post.publisher}} · {{post.category}}</view>
     <view class="detail-content">{{post.content}}</view>
 
     <view class="detail-grid">
