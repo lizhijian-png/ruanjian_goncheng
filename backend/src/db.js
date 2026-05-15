@@ -33,6 +33,7 @@ function mapPost(row) {
     id: row.id,
     publisherId: row.publisherId,
     publisher: row.publisherName,
+    publisherAvatarUrl: row.publisherAvatarUrl || '',
     title: row.title,
     content: row.content,
     reward: row.reward,
