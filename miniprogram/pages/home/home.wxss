@@ -312,3 +312,16 @@
   flex: 1;
   height: 88rpx;
 }
+
+/* ===== 发布者头像（卡片右上角悬浮） ===== */
+.post-publisher-avatar {
+  position: absolute;
+  top: 20rpx;
+  right: 20rpx;
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  border: 3rpx solid #ffffff;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
