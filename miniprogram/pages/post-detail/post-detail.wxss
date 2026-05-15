@@ -163,3 +163,39 @@
 .eval-slider {
   margin-top: 8rpx;
 }
+
+/* ===== Publisher bar ===== */
+.publisher-bar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 16rpx;
+  margin: 12rpx 0 18rpx;
+}
+
+.publisher-avatar {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  border: 3rpx solid #ffffff;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
+
+.publisher-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4rpx;
+}
+
+.publisher-name {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.publisher-category {
+  font-size: 22rpx;
+  color: var(--muted);
+}
