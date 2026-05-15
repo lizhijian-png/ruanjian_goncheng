@@ -165,8 +165,8 @@ app.get('/api/posts', async (req, res, next) => {
     const rows = await query(
       `SELECT p.*, u.avatarUrl AS publisherAvatarUrl
        FROM posts p LEFT JOIN users u ON p.publisherId = u.id${whereClause}
-       ORDER BY p.createdAt DESC LIMIT ? OFFSET ?`,
-      [...params, pageSize, offset]
+       ORDER BY p.createdAt DESC LIMIT ${pageSize} OFFSET ${offset}`,
+      params
     );
 
     res.json({
