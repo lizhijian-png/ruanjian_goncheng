@@ -169,10 +169,9 @@ app.post('/api/auth/bind', async (req, res, next) => {
 
 app.get('/api/posts', async (req, res, next) => {
   try {
-    const { category, startAfter, endBefore, keyword } = req.query;
+    const { category, startAfter, endBefore, keyword, userId } = req.query;
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const pageSize = Math.min(50, Math.max(1, parseInt(req.query.pageSize) || 10));
-    const offset = (page - 1) * pageSize;
 
     const conditions = [];
     const params = [];
@@ -197,25 +196,54 @@ app.get('/api/posts', async (req, res, next) => {
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const whereClause = where ? ` ${where}` : '';
 
-    const countRows = await query(
-      `SELECT COUNT(*) AS total FROM posts p LEFT JOIN users u ON p.publisherId = u.id${whereClause}`,
-      params
-    );
-    const total = countRows[0].total;
-
+    // 取全量候选帖子（含发布者信息），内存排序后再分页
     const rows = await query(
-      `SELECT p.*, u.avatarUrl AS publisherAvatarUrl
+      `SELECT p.*, u.avatarUrl AS publisherAvatarUrl,
+              u.completionRate AS publisherCompletionRate,
+              u.points AS publisherPoints
        FROM posts p LEFT JOIN users u ON p.publisherId = u.id${whereClause}
-       ORDER BY p.createdAt DESC LIMIT ${pageSize} OFFSET ${offset}`,
+       ORDER BY p.createdAt DESC`,
       params
     );
+
+    // 构建用户偏好向量
+    let preferenceMap = null;
+    if (userId) {
+      const prefRows = await query(
+        `SELECT p.category,
+           SUM(CASE WHEN p.status = '已完成' THEN 1 ELSE 0 END) AS doneCount,
+           SUM(CASE WHEN p.status = '已放弃' THEN 1 ELSE 0 END) AS abandonCount
+         FROM post_buddies pb
+         JOIN posts p ON p.id = pb.postId
+         WHERE pb.userId = ?
+         GROUP BY p.category`,
+        [userId]
+      );
+      preferenceMap = new Map(
+        prefRows.map(r => [r.category, { doneCount: Number(r.doneCount), abandonCount: Number(r.abandonCount) }])
+      );
+    }
+
+    // 内存计算推荐分并排序
+    const scored = rows.map(row => {
+      const publisherUser = row.publisherCompletionRate != null
+        ? { completionRate: row.publisherCompletionRate, points: row.publisherPoints }
+        : null;
+      const score = calcRecommendedScore(row, publisherUser, preferenceMap);
+      return { row, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+
+    const total = scored.length;
+    const offset = (page - 1) * pageSize;
+    const pageSlice = scored.slice(offset, offset + pageSize);
 
     res.json({
-      list: rows.map(mapPost),
+      list: pageSlice.map(({ row, score }) => ({ ...mapPost(row), recommendedScore: score })),
       total,
       page,
       pageSize,
-      hasMore: offset + rows.length < total
+      hasMore: offset + pageSlice.length < total
     });
   } catch (error) {
     next(error);
