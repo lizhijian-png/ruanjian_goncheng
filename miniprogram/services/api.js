@@ -93,11 +93,11 @@ function completePost(id, userId) {
   });
 }
 
-function submitEvidence(postId, userId, content) {
+function submitEvidence(postId, userId, submitterName, content) {
   return request({
     url: `/api/posts/${postId}/evidence`,
     method: 'POST',
-    data: { userId, content }
+    data: { userId, submitterName, content }
   });
 }
 
