@@ -1,19 +1,7 @@
 {
   "libVersion": "3.15.2",
   "projectname": "ruanjian_goncheng",
-  "condition": {
-    "miniprogram": {
-      "list": [
-        {
-          "name": "测试加入",
-          "pathName": "pages/post-detail/post-detail",
-          "query": "id=p_test_01",
-          "scene": null,
-          "launchMode": "default"
-        }
-      ]
-    }
-  },
+  "condition": {},
   "setting": {
     "urlCheck": false,
     "coverView": true,
