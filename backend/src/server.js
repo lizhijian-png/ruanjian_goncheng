@@ -465,7 +465,6 @@ app.post('/api/posts/:id/join', async (req, res, next) => {
 
 app.post('/api/posts/:id/quit', async (req, res, next) => {
   try {
-    await syncPostStatus(req.params.id);
     const { userId } = req.body;
     if (!userId) {
       return res.status(400).json({ message: '缺少 userId' });
@@ -488,6 +487,7 @@ app.post('/api/posts/:id/quit', async (req, res, next) => {
       return res.status(400).json({ message: '你不是该任务的搭子' });
     }
 
+    await syncPostStatus(req.params.id);
     await withTransaction(async (connection) => {
       await connection.execute(
         'DELETE FROM post_buddies WHERE postId = ? AND userId = ?',
