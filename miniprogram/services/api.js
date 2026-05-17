@@ -132,6 +132,22 @@ function submitEvaluation(postId, userId, score, content) {
   });
 }
 
+function startPost(postId, userId) {
+  return request({
+    url: `/api/posts/${postId}/start`,
+    method: 'POST',
+    data: { userId }
+  });
+}
+
+function requestComplete(postId, userId) {
+  return request({
+    url: `/api/posts/${postId}/request-complete`,
+    method: 'POST',
+    data: { userId }
+  });
+}
+
 function updateProfile(userId, payload) {
   return request({
     url: `/api/users/${userId}/profile`,
@@ -156,5 +172,7 @@ module.exports = {
   joinPost,
   quitPost,
   abandonPost,
-  submitEvaluation
+  submitEvaluation,
+  startPost,
+  requestComplete
 };
