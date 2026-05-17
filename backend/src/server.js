@@ -865,40 +865,29 @@ app.get('/api/users/:id/profile', async (req, res, next) => {
       return res.status(404).json({ message: '用户不存在' });
     }
 
-    const publishedRows = await query(
-      'SELECT * FROM posts WHERE publisherId = ? ORDER BY createdAt DESC',
+    const getPublished = () => query(
+      `SELECT p.*, u.avatarUrl AS publisherAvatarUrl
+       FROM posts p LEFT JOIN users u ON p.publisherId = u.id
+       WHERE p.publisherId = ? ORDER BY p.createdAt DESC`,
       [req.params.id]
     );
-    const joinedRows = await query(
-      `SELECT posts.* FROM posts
-       JOIN post_buddies ON posts.id = post_buddies.postId
-       WHERE post_buddies.userId = ?
-       ORDER BY posts.createdAt DESC`,
+    const getJoined = () => query(
+      `SELECT p.*, u.avatarUrl AS publisherAvatarUrl
+       FROM posts p
+       JOIN post_buddies pb ON p.id = pb.postId
+       LEFT JOIN users u ON p.publisherId = u.id
+       WHERE pb.userId = ? ORDER BY p.createdAt DESC`,
       [req.params.id]
     );
 
-    // 懒更新：同步每条帖子的时间驱动状态
-    const allRows = [...publishedRows, ...joinedRows];
+    const allRows = [...(await getPublished()), ...(await getJoined())];
     for (const row of allRows) {
       await syncPostStatus(row.id);
     }
 
-    // 重新查询以获取 syncPostStatus 后的最新状态
-    const freshPublished = await query(
-      'SELECT * FROM posts WHERE publisherId = ? ORDER BY createdAt DESC',
-      [req.params.id]
-    );
-    const freshJoined = await query(
-      `SELECT posts.* FROM posts
-       JOIN post_buddies ON posts.id = post_buddies.postId
-       WHERE post_buddies.userId = ?
-       ORDER BY posts.createdAt DESC`,
-      [req.params.id]
-    );
-
     const posts = [
-      ...freshPublished.map(row => ({ ...mapPost(row), role: 'publisher' })),
-      ...freshJoined.map(row => ({ ...mapPost(row), role: 'buddy' }))
+      ...(await getPublished()).map(row => ({ ...mapPost(row), role: 'publisher' })),
+      ...(await getJoined()).map(row => ({ ...mapPost(row), role: 'buddy' }))
     ];
 
     return res.json({
