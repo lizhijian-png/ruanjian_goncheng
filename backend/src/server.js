@@ -731,6 +731,38 @@ app.post('/api/posts/:id/abandon', async (req, res, next) => {
   }
 });
 
+app.post('/api/posts/:id/start', async (req, res, next) => {
+  try {
+    await syncPostStatus(req.params.id);
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ message: '缺少 userId' });
+    }
+
+    const rows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
+    const post = rows[0];
+    if (!post) {
+      return res.status(404).json({ message: '帖子不存在' });
+    }
+    if (post.publisherId !== userId) {
+      return res.status(403).json({ message: '只有发布者可以手动开始任务' });
+    }
+    if (post.status !== '招募中') {
+      return res.status(400).json({ message: '只有招募中的任务才能手动开始' });
+    }
+    if (post.currentBuddies < 1) {
+      return res.status(400).json({ message: '至少需要一名搭子才能开始任务' });
+    }
+
+    await query('UPDATE posts SET status = ? WHERE id = ?', ['进行中', req.params.id]);
+
+    const freshRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
+    res.json(mapPost(freshRows[0]));
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/api/ranking', async (_req, res, next) => {
   try {
     const rows = await query('SELECT id, nickname, avatarUrl, points, completionRate FROM users ORDER BY points DESC, createdAt ASC');
