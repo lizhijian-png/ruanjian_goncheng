@@ -30,6 +30,27 @@ async function getUserById(userId) {
   return rows[0] || null;
 }
 
+async function syncPostStatus(postId) {
+  const rows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
+  const post = rows[0];
+  if (!post) return;
+
+  const now = new Date();
+
+  if (post.status === '招募中') {
+    if (post.startTime && now >= new Date(post.startTime) && post.currentBuddies >= 1) {
+      await query('UPDATE posts SET status = ? WHERE id = ?', ['进行中', postId]);
+    }
+    return;
+  }
+
+  if (post.status === '进行中') {
+    if (post.endTime && now >= new Date(post.endTime)) {
+      await query('UPDATE posts SET status = ? WHERE id = ?', ['待评价', postId]);
+    }
+  }
+}
+
 app.get('/api/health', (_req, res) => {
   res.json({ success: true, message: 'backend is running' });
 });
@@ -183,6 +204,7 @@ app.get('/api/posts', async (req, res, next) => {
 
 app.get('/api/posts/:id', async (req, res, next) => {
   try {
+    await syncPostStatus(req.params.id);
     const postRows = await query(
       `SELECT p.*, u.avatarUrl AS publisherAvatarUrl
        FROM posts p LEFT JOIN users u ON p.publisherId = u.id
@@ -380,6 +402,7 @@ app.delete('/api/posts/:id', async (req, res, next) => {
 
 app.post('/api/posts/:id/join', async (req, res, next) => {
   try {
+    await syncPostStatus(req.params.id);
     const { userId } = req.body;
     if (!userId) {
       return res.status(400).json({ message: '缺少 userId' });
@@ -442,6 +465,7 @@ app.post('/api/posts/:id/join', async (req, res, next) => {
 
 app.post('/api/posts/:id/quit', async (req, res, next) => {
   try {
+    await syncPostStatus(req.params.id);
     const { userId } = req.body;
     if (!userId) {
       return res.status(400).json({ message: '缺少 userId' });
@@ -496,6 +520,7 @@ app.post('/api/posts/:id/quit', async (req, res, next) => {
 
 app.post('/api/posts/:id/evidence', async (req, res, next) => {
   try {
+    await syncPostStatus(req.params.id);
     const { userId, content } = req.body;
     if (!userId || !String(content || '').trim()) {
       return res.status(400).json({ message: '缺少 userId 或证据内容' });
@@ -545,6 +570,7 @@ app.post('/api/posts/:id/evidence', async (req, res, next) => {
 
 app.post('/api/posts/:id/complete', async (req, res, next) => {
   try {
+    await syncPostStatus(req.params.id);
     const { userId } = req.body;
     const rows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     const current = rows[0];
@@ -571,6 +597,7 @@ app.post('/api/posts/:id/complete', async (req, res, next) => {
 
 app.post('/api/posts/:id/evaluate', async (req, res, next) => {
   try {
+    await syncPostStatus(req.params.id);
     const { userId, score, content } = req.body;
     if (!userId || !score || !String(content || '').trim()) {
       return res.status(400).json({ message: '缺少 userId、score 或评价内容' });
@@ -666,6 +693,7 @@ async function recalcCompletionRate(userId) {
 
 app.post('/api/posts/:id/abandon', async (req, res, next) => {
   try {
+    await syncPostStatus(req.params.id);
     const { userId } = req.body;
     if (!userId) {
       return res.status(400).json({ message: '缺少 userId' });

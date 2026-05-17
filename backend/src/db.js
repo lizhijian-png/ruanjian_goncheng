@@ -54,6 +54,8 @@ function mapPost(row) {
     completionRequests: (() => {
       try { return JSON.parse(row.completionRequests || '[]'); } catch { return []; }
     })(),
+    publisherEvaluated: Boolean(row.publisherEvaluated),
+    buddyEvaluated: Boolean(row.buddyEvaluated),
   };
 }
 
