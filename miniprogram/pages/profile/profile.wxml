@@ -20,17 +20,55 @@
 
   <!-- 我的帖子 -->
   <view class="section-card operations-card">
-    <view class="section-title">我的帖子操作</view>
+    <view class="section-title">我的帖子</view>
     <button class="primary-btn manage-btn" bindtap="goPublish">继续创建帖子</button>
-    <block wx:for="{{posts}}" wx:key="id">
+
+    <!-- Tab 栏 -->
+    <view class="tab-bar">
+      <view
+        class="tab-item {{activeTab === 'active' ? 'tab-active' : ''}}"
+        data-tab="active"
+        bindtap="switchTab"
+      >活跃</view>
+      <view
+        class="tab-item {{activeTab === 'done' ? 'tab-active' : ''}}"
+        data-tab="done"
+        bindtap="switchTab"
+      >已完成</view>
+      <view
+        class="tab-item {{activeTab === 'abandoned' ? 'tab-active' : ''}}"
+        data-tab="abandoned"
+        bindtap="switchTab"
+      >已放弃</view>
+    </view>
+
+    <!-- 帖子列表 -->
+    <block wx:for="{{filteredPosts}}" wx:key="id">
       <view class="post-card my-post" data-id="{{item.id}}" bindtap="goPostDetail">
-        <view>
+        <view class="my-post-main">
           <view class="post-title">{{item.title}}</view>
-          <view class="muted">{{item.status}} · +{{item.reward}} / -{{item.penalty}}</view>
+          <view class="my-post-meta">
+            <view class="muted">{{item.status}}</view>
+            <view class="role-tag {{item.role === 'buddy' ? 'role-tag-buddy' : 'role-tag-publisher'}}">
+              {{item.role === 'buddy' ? '参与' : '发布'}}
+            </view>
+          </view>
+          <view class="muted small-text">+{{item.reward}} / -{{item.penalty}} 积分</view>
         </view>
-        <button class="ghost-btn delete-btn" size="mini" data-id="{{item.id}}" catchtap="deletePost">删除</button>
+        <button
+          wx:if="{{item.role === 'publisher'}}"
+          class="ghost-btn delete-btn"
+          size="mini"
+          data-id="{{item.id}}"
+          catchtap="deletePost"
+        >删除</button>
       </view>
     </block>
+
+    <!-- 空状态 -->
+    <view class="empty-tip" wx:if="{{filteredPosts.length === 0}}">
+      <text>暂无相关帖子</text>
+    </view>
   </view>
 </view>
 
