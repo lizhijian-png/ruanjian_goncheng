@@ -4,6 +4,8 @@ Page({
   data: {
     user: {},
     posts: [],
+    activeTab: 'active',   // 'active' | 'done' | 'abandoned'
+    filteredPosts: [],
     settingsVisible: false,
     editNickname: '',
     editAvatarUrl: '',
@@ -28,9 +30,28 @@ Page({
       };
       wx.setStorageSync('userInfo', profile.user);
       this.setData(profile);
+      this._filterPosts();
     } catch (error) {
       wx.showToast({ title: '加载个人信息失败', icon: 'none' });
     }
+  },
+  _filterPosts() {
+    const { posts, activeTab } = this.data;
+    const ACTIVE_STATUSES = ['招募中', '进行中', '待评价'];
+    let filtered;
+    if (activeTab === 'active') {
+      filtered = posts.filter(p => ACTIVE_STATUSES.includes(p.status));
+    } else if (activeTab === 'done') {
+      filtered = posts.filter(p => p.status === '已完成');
+    } else {
+      filtered = posts.filter(p => p.status === '已放弃');
+    }
+    this.setData({ filteredPosts: filtered });
+  },
+  switchTab(e) {
+    const tab = e.currentTarget.dataset.tab;
+    this.setData({ activeTab: tab });
+    this._filterPosts();
   },
   goPublish() {
     wx.navigateTo({ url: '/pages/publish/publish' });
