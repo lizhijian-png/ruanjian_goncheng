@@ -38,12 +38,13 @@ function bind({ code, nickname, avatarUrl }) {
   });
 }
 
-function getFeed({ category = '', startAfter = '', endBefore = '', keyword = '', page = 1, pageSize = 10 } = {}) {
+function getFeed({ category = '', startAfter = '', endBefore = '', keyword = '', userId = '', page = 1, pageSize = 10 } = {}) {
   const params = [];
   if (category) params.push(`category=${encodeURIComponent(category)}`);
   if (startAfter) params.push(`startAfter=${encodeURIComponent(startAfter)}`);
   if (endBefore) params.push(`endBefore=${encodeURIComponent(endBefore)}`);
   if (keyword) params.push(`keyword=${encodeURIComponent(keyword)}`);
+  if (userId) params.push(`userId=${encodeURIComponent(userId)}`);
   params.push(`page=${page}`);
   params.push(`pageSize=${pageSize}`);
   return request({ url: `/api/posts?${params.join('&')}` });
