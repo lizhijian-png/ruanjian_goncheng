@@ -50,7 +50,10 @@ function mapPost(row) {
     currentBuddies: row.currentBuddies != null ? row.currentBuddies : 0,
     startTime: row.startTime || null,
     endTime: row.endTime || null,
-    createdAt: row.createdAt
+    createdAt: row.createdAt,
+    completionRequests: (() => {
+      try { return JSON.parse(row.completionRequests || '[]'); } catch { return []; }
+    })(),
   };
 }
 
@@ -207,6 +210,12 @@ async function createTables() {
   const fromIdCol = await query(`SHOW COLUMNS FROM evaluations LIKE 'fromId'`);
   if (fromIdCol.length === 0) {
     await query(`ALTER TABLE evaluations ADD COLUMN fromId VARCHAR(64) NULL AFTER postId`);
+  }
+
+  // 兼容旧表：搭子完成申请记录
+  const completionRequestsCol = await query(`SHOW COLUMNS FROM posts LIKE 'completionRequests'`);
+  if (completionRequestsCol.length === 0) {
+    await query(`ALTER TABLE posts ADD COLUMN completionRequests TEXT NOT NULL DEFAULT '[]'`);
   }
 }
 
