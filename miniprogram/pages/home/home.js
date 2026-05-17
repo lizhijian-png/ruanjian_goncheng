@@ -74,11 +74,14 @@ Page({
     this.setData({ loading: true });
     try {
       const { activeCategory, activeStartAfter, activeEndBefore, keyword } = this.data;
+      const app = getApp();
+      const userInfo = app.globalData.userInfo || wx.getStorageSync('userInfo') || {};
       const result = await api.getFeed({
         category: activeCategory,
         startAfter: activeStartAfter,
         endBefore: activeEndBefore,
         keyword,
+        userId: userInfo.id || '',
         page,
         pageSize: PAGE_SIZE
       });
