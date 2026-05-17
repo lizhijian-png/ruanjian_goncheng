@@ -51,6 +51,26 @@ async function syncPostStatus(postId) {
   }
 }
 
+function calcRecommendedScore(post, publisherUser, preferenceMap) {
+  const cr = publisherUser ? (publisherUser.completionRate || 0) : 0;
+  const pts = publisherUser ? Math.min((publisherUser.points || 0) / 10, 100) : 0;
+  const publisherScore = cr * 0.6 + pts * 0.4;
+
+  const rewardScore = Math.min((post.reward || 0) / 2, 50);
+  const penaltyScore = Math.min((post.penalty || 0) / 2, 30);
+  const hotBonus = (post.currentBuddies || 0) >= (post.maxBuddies || 1) * 0.8 ? 20 : 0;
+  const postScore = rewardScore + penaltyScore + hotBonus;
+
+  const pref = preferenceMap ? preferenceMap.get(post.category) : null;
+  let prefScore = 50;
+  if (pref) {
+    const total = pref.doneCount * 2 + pref.abandonCount;
+    prefScore = total > 0 ? (pref.doneCount * 2 / total) * 100 : 50;
+  }
+
+  return Math.round(publisherScore * 0.4 + postScore * 0.3 + prefScore * 0.3);
+}
+
 app.get('/api/health', (_req, res) => {
   res.json({ success: true, message: 'backend is running' });
 });
