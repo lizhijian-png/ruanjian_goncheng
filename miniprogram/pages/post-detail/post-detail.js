@@ -18,11 +18,23 @@ Page({
     currentUserId: '',
     isPublisher: false,
     isBuddy: false,
+    // 游客
     canJoin: false,
+    // 发布者
+    canStart: false,
+    canMarkDone: false,
     canAbandon: false,
+    // 搭子
+    canQuit: false,
+    canRequestComplete: false,
+    hasRequested: false,
+    // 共同
     canSubmitEvidence: false,
     canEvaluate: false,
     myEvaluated: false,
+    // 申请完成展示
+    completionStatusList: [],
+    // 表单
     showEvidenceForm: false,
     evidenceInput: '',
     showEvalForm: false,
@@ -43,17 +55,34 @@ Page({
       const { currentUserId } = this.data;
       const isPublisher = post.publisherId === currentUserId;
       const isBuddy = buddies.some(b => b.userId === currentUserId);
-      const canJoin = !isPublisher && !isBuddy && post.status === '招募中';
+      const completionRequests = post.completionRequests || [];
+
+      // 游客
+      const canJoin = !isPublisher && !isBuddy && post.status === '招募中' && post.currentBuddies < post.maxBuddies;
+
+      // 发布者
+      const canStart = isPublisher && post.status === '招募中' && post.currentBuddies >= 1;
+      const canMarkDone = isPublisher && post.status === '进行中';
       const canAbandon = isPublisher && (post.status === '招募中' || post.status === '进行中');
 
-      const isParticipant = isPublisher || isBuddy;
-      const ended = post.endTime && new Date(post.endTime) <= new Date();
-      const canSubmitEvidence = isParticipant && (post.status === '已完成' || ended);
+      // 搭子
+      const canQuit = isBuddy && (post.status === '招募中' || post.status === '进行中');
+      const hasRequested = completionRequests.includes(currentUserId);
+      const canRequestComplete = isBuddy && post.status === '进行中' && !hasRequested;
 
+      // 共同（参与者在待评价阶段）
+      const isParticipant = isPublisher || isBuddy;
       const myEvaluated = isPublisher
         ? Boolean(post.publisherEvaluated)
         : isBuddy ? Boolean(post.buddyEvaluated) : false;
-      const canEvaluate = isParticipant && post.status === '待评价' && ended && hasEvidence && !myEvaluated;
+      const canSubmitEvidence = isParticipant && post.status === '待评价' && !myEvaluated;
+      const canEvaluate = isParticipant && post.status === '待评价' && hasEvidence && !myEvaluated;
+
+      // 申请完成展示列表（进行中时，所有搭子的申请状态）
+      const completionStatusList = buddies.map(b => ({
+        nickname: b.nickname,
+        requested: completionRequests.includes(b.userId)
+      }));
 
       this.setData({
         post: {
@@ -62,8 +91,11 @@ Page({
           endTime: formatTime(post.endTime)
         },
         evidenceList, evaluations, buddies, hasEvidence,
-        isPublisher, isBuddy, canJoin, canAbandon,
-        canSubmitEvidence, canEvaluate, myEvaluated
+        isPublisher, isBuddy,
+        canJoin, canStart, canMarkDone, canAbandon,
+        canQuit, canRequestComplete, hasRequested,
+        canSubmitEvidence, canEvaluate, myEvaluated,
+        completionStatusList
       });
     } catch (error) {
       wx.showToast({ title: error.message || '加载详情失败', icon: 'none' });
@@ -99,6 +131,28 @@ Page({
         }
       }
     });
+  },
+  async startTask() {
+    const { post, currentUserId } = this.data;
+    if (!post || !post.id) return;
+    try {
+      await api.startPost(post.id, currentUserId);
+      wx.showToast({ title: '任务已开始', icon: 'success' });
+      await this._loadDetail(post.id);
+    } catch (error) {
+      wx.showToast({ title: error.message || '操作失败', icon: 'none' });
+    }
+  },
+  async requestCompleteTask() {
+    const { post, currentUserId } = this.data;
+    if (!post || !post.id) return;
+    try {
+      await api.requestComplete(post.id, currentUserId);
+      wx.showToast({ title: '已申请完成，等待发布者确认', icon: 'success' });
+      await this._loadDetail(post.id);
+    } catch (error) {
+      wx.showToast({ title: error.message || '操作失败', icon: 'none' });
+    }
   },
   async markDone() {
     const { post, currentUserId } = this.data;
