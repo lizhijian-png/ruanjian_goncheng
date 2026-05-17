@@ -38,7 +38,7 @@
     <!-- 申请完成进度（进行中状态，所有角色可见） -->
     <view wx:if="{{post.status === '进行中' && buddies.length > 0}}" class="section-title detail-section">完成申请进度</view>
     <view wx:if="{{post.status === '进行中' && buddies.length > 0}}" class="completion-requests">
-      <view wx:for="{{completionStatusList}}" wx:key="nickname" class="completion-request-item">
+      <view wx:for="{{completionStatusList}}" wx:key="userId" class="completion-request-item">
         <view class="buddy-name">{{item.nickname}}</view>
         <view class="{{item.requested ? 'request-done' : 'request-pending'}}">{{item.requested ? '✓ 已申请' : '— 未申请'}}</view>
       </view>

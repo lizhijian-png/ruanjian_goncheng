@@ -86,10 +86,6 @@
   padding: 16rpx 0 20rpx;
 }
 
-.evidence-submit-entry {
-  margin-top: 16rpx;
-}
-
 .evidence-form {
   margin-top: 16rpx;
   padding: 24rpx;

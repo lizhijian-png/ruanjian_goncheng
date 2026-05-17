@@ -80,6 +80,7 @@ Page({
 
       // 申请完成展示列表（进行中时，所有搭子的申请状态）
       const completionStatusList = buddies.map(b => ({
+        userId: b.userId,
         nickname: b.nickname,
         requested: completionRequests.includes(b.userId)
       }));
