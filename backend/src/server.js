@@ -763,6 +763,55 @@ app.post('/api/posts/:id/start', async (req, res, next) => {
   }
 });
 
+app.post('/api/posts/:id/request-complete', async (req, res, next) => {
+  try {
+    await syncPostStatus(req.params.id);
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ message: '缺少 userId' });
+    }
+
+    const rows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
+    const post = rows[0];
+    if (!post) {
+      return res.status(404).json({ message: '帖子不存在' });
+    }
+    if (post.status !== '进行中') {
+      return res.status(400).json({ message: '只有进行中的任务才能申请完成' });
+    }
+
+    const buddyRows = await query(
+      'SELECT id FROM post_buddies WHERE postId = ? AND userId = ?',
+      [req.params.id, userId]
+    );
+    if (buddyRows.length === 0) {
+      return res.status(403).json({ message: '只有搭子才能申请完成' });
+    }
+
+    let requests;
+    try {
+      requests = JSON.parse(post.completionRequests || '[]');
+    } catch {
+      requests = [];
+    }
+
+    if (requests.includes(userId)) {
+      return res.status(400).json({ message: '你已申请过完成' });
+    }
+
+    requests.push(userId);
+    await query(
+      'UPDATE posts SET completionRequests = ? WHERE id = ?',
+      [JSON.stringify(requests), req.params.id]
+    );
+
+    const freshRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
+    res.json(mapPost(freshRows[0]));
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/api/ranking', async (_req, res, next) => {
   try {
     const rows = await query('SELECT id, nickname, avatarUrl, points, completionRate FROM users ORDER BY points DESC, createdAt ASC');
