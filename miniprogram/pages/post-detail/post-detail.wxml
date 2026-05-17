@@ -80,7 +80,7 @@
     <view class="section-title detail-section">完成证据</view>
     <view wx:if="{{evidenceList.length === 0}}" class="muted empty-hint">暂无证据</view>
     <block wx:for="{{evidenceList}}" wx:key="index">
-      <view class="evidence-item">{{item.type}}：{{item.value}}</view>
+      <view class="evidence-item">{{item.submitterName}}：{{item.value}}</view>
     </block>
 
     <view wx:if="{{showEvidenceForm}}" class="evidence-form">

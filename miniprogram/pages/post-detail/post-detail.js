@@ -206,8 +206,10 @@ Page({
       wx.showToast({ title: '请填写证据内容', icon: 'none' });
       return;
     }
+    const userInfo = getApp().globalData.userInfo || wx.getStorageSync('userInfo');
+    const submitterName = (userInfo && userInfo.nickname) ? userInfo.nickname : currentUserId;
     try {
-      await api.submitEvidence(post.id, currentUserId, evidenceInput);
+      await api.submitEvidence(post.id, currentUserId, submitterName, evidenceInput);
       wx.showToast({ title: '证据已提交', icon: 'success' });
       this.setData({ showEvidenceForm: false, evidenceInput: '' });
       await this._loadDetail(post.id);

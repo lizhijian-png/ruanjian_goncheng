@@ -268,7 +268,7 @@ app.get('/api/posts/:id', async (req, res, next) => {
     }
 
     const evidenceList = await query(
-      'SELECT type, value FROM evidences WHERE postId = ? ORDER BY createdAt ASC',
+      'SELECT submitterId, submitterName, type, value FROM evidences WHERE postId = ? ORDER BY createdAt ASC',
       [req.params.id]
     );
     const evaluations = await query(
@@ -576,10 +576,11 @@ app.post('/api/posts/:id/quit', async (req, res, next) => {
 app.post('/api/posts/:id/evidence', async (req, res, next) => {
   try {
     await syncPostStatus(req.params.id);
-    const { userId, content } = req.body;
+    const { userId, submitterName, content } = req.body;
     if (!userId || !String(content || '').trim()) {
       return res.status(400).json({ message: '缺少 userId 或证据内容' });
     }
+    const safeSubmitterName = String(submitterName || userId).trim();
 
     const postRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     const post = postRows[0];
@@ -611,13 +612,21 @@ app.post('/api/posts/:id/evidence', async (req, res, next) => {
     }
 
     const id = createId('e');
-    await query(
-      'INSERT INTO evidences (id, postId, type, value) VALUES (?, ?, ?, ?)',
-      [id, req.params.id, '文字', String(content).trim()]
+    const trimmedValue = String(content).trim();
+    const result = await query(
+      `INSERT INTO evidences (id, postId, submitterId, submitterName, type, value)
+       VALUES (?, ?, ?, ?, '文字', ?)
+       ON DUPLICATE KEY UPDATE
+         id = VALUES(id),
+         submitterName = VALUES(submitterName),
+         value = VALUES(value),
+         createdAt = NOW()`,
+      [id, req.params.id, userId, safeSubmitterName, trimmedValue]
     );
 
-    const evidence = { id, type: '文字', value: String(content).trim() };
-    res.status(201).json(evidence);
+    const evidence = { id, submitterId: userId, submitterName: safeSubmitterName, type: '文字', value: trimmedValue };
+    const statusCode = result.affectedRows === 1 ? 201 : 200;
+    res.status(statusCode).json(evidence);
   } catch (error) {
     next(error);
   }

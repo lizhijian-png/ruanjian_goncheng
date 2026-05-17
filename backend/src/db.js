@@ -188,9 +188,12 @@ async function createTables() {
     CREATE TABLE IF NOT EXISTS evidences (
       id VARCHAR(64) PRIMARY KEY,
       postId VARCHAR(64) NOT NULL,
+      submitterId VARCHAR(64) NOT NULL DEFAULT '',
+      submitterName VARCHAR(100) NOT NULL DEFAULT '',
       type VARCHAR(50) NOT NULL,
       value TEXT NOT NULL,
       createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_evidence_post_user (postId, submitterId),
       CONSTRAINT fk_evidences_post FOREIGN KEY (postId) REFERENCES posts(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
@@ -218,6 +221,29 @@ async function createTables() {
   const completionRequestsCol = await query(`SHOW COLUMNS FROM posts LIKE 'completionRequests'`);
   if (completionRequestsCol.length === 0) {
     await query(`ALTER TABLE posts ADD COLUMN completionRequests TEXT NULL`);
+  }
+
+  // 兼容旧表：evidences 加 submitterId / submitterName / unique key
+  const evidenceSubmitterCol = await query(`SHOW COLUMNS FROM evidences LIKE 'submitterId'`);
+  if (evidenceSubmitterCol.length === 0) {
+    await query(`
+      ALTER TABLE evidences
+        ADD COLUMN submitterId VARCHAR(64) NOT NULL DEFAULT '' AFTER postId,
+        ADD COLUMN submitterName VARCHAR(100) NOT NULL DEFAULT '' AFTER submitterId
+    `);
+  }
+  const evidenceUniqueKey = await query(`
+    SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'evidences'
+      AND CONSTRAINT_NAME = 'uq_evidence_post_user'
+  `);
+  if (evidenceUniqueKey.length === 0) {
+    await query(`UPDATE evidences SET submitterId = CONCAT('legacy_', id) WHERE submitterId = ''`);
+    await query(`
+      ALTER TABLE evidences
+        ADD UNIQUE KEY uq_evidence_post_user (postId, submitterId)
+    `);
   }
 }
 
