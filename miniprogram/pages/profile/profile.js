@@ -68,6 +68,7 @@ Page({
       this.setData({
         posts: this.data.posts.filter((item) => item.id !== id)
       });
+      this._filterPosts();
       wx.showToast({ title: '帖子已删除', icon: 'none' });
     } catch (error) {
       wx.showToast({ title: error.message || '删除失败', icon: 'none' });
