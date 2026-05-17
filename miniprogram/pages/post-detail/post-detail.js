@@ -135,13 +135,20 @@ Page({
   async startTask() {
     const { post, currentUserId } = this.data;
     if (!post || !post.id) return;
-    try {
-      await api.startPost(post.id, currentUserId);
-      wx.showToast({ title: '任务已开始', icon: 'success' });
-      await this._loadDetail(post.id);
-    } catch (error) {
-      wx.showToast({ title: error.message || '操作失败', icon: 'none' });
-    }
+    wx.showModal({
+      title: '确认开始任务',
+      content: '开始后任务将进入进行中状态，确认开始吗？',
+      success: async (res) => {
+        if (!res.confirm) return;
+        try {
+          await api.startPost(post.id, currentUserId);
+          wx.showToast({ title: '任务已开始', icon: 'success' });
+          await this._loadDetail(post.id);
+        } catch (error) {
+          wx.showToast({ title: error.message || '操作失败', icon: 'none' });
+        }
+      }
+    });
   },
   async requestCompleteTask() {
     const { post, currentUserId } = this.data;
