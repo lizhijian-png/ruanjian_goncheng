@@ -35,20 +35,45 @@
       </view>
     </block>
 
+    <!-- 申请完成进度（进行中状态，所有角色可见） -->
+    <view wx:if="{{post.status === '进行中' && buddies.length > 0}}" class="section-title detail-section">完成申请进度</view>
+    <view wx:if="{{post.status === '进行中' && buddies.length > 0}}" class="completion-requests">
+      <view wx:for="{{completionStatusList}}" wx:key="nickname" class="completion-request-item">
+        <view class="buddy-name">{{item.nickname}}</view>
+        <view class="{{item.requested ? 'request-done' : 'request-pending'}}">{{item.requested ? '✓ 已申请' : '— 未申请'}}</view>
+      </view>
+    </view>
+
     <!-- 操作按钮区 -->
     <view class="action-area">
-      <!-- 游客/非搭子：招募中可加入 -->
+      <!-- 游客：招募中可加入 -->
       <button wx:if="{{canJoin}}" class="primary-btn action-btn" bindtap="joinTask">加入任务</button>
-      <!-- 搭子：招募中或进行中可退出 -->
-      <button wx:if="{{isBuddy && (post.status === '招募中' || post.status === '进行中')}}" class="ghost-btn action-btn" bindtap="quitTask">退出任务</button>
+
+      <!-- 发布者：招募中且有搭子可手动开始 -->
+      <button wx:if="{{canStart}}" class="primary-btn action-btn" bindtap="startTask">手动开始任务</button>
+
       <!-- 发布者：进行中可标记完成 -->
-      <button wx:if="{{isPublisher && post.status === '进行中'}}" class="primary-btn action-btn" bindtap="markDone">标记完成 → 进入待评价</button>
-      <!-- 参与者：待评价且满足条件可提交互评 -->
+      <button wx:if="{{canMarkDone}}" class="primary-btn action-btn" bindtap="markDone">标记完成 → 进入待评价</button>
+
+      <!-- 发布者/搭子：可放弃 -->
+      <button wx:if="{{canAbandon}}" class="danger-btn action-btn" bindtap="abandonTask">放弃任务</button>
+
+      <!-- 搭子：招募中或进行中可退出 -->
+      <button wx:if="{{canQuit}}" class="ghost-btn action-btn" bindtap="quitTask">退出任务</button>
+
+      <!-- 搭子：进行中未申请可申请完成 -->
+      <button wx:if="{{canRequestComplete}}" class="ghost-btn action-btn" bindtap="requestCompleteTask">申请完成</button>
+      <!-- 搭子：已申请完成（灰色不可点） -->
+      <button wx:if="{{isBuddy && post.status === '进行中' && hasRequested}}" class="ghost-btn action-btn" disabled>已申请完成</button>
+
+      <!-- 参与者：待评价可提交证据 -->
+      <button wx:if="{{canSubmitEvidence && !showEvidenceForm}}" class="ghost-btn action-btn" bindtap="openEvidenceForm">+ 提交文字证据</button>
+
+      <!-- 参与者：待评价可提交互评 -->
       <button wx:if="{{canEvaluate}}" class="primary-btn action-btn" bindtap="openEvalForm">提交互评</button>
+
       <!-- 已评价提示 -->
       <view wx:if="{{(isPublisher || isBuddy) && post.status === '待评价' && myEvaluated}}" class="eval-done-hint">你已提交评价，等待对方评价中…</view>
-      <!-- 发布者：招募中或进行中可放弃 -->
-      <button wx:if="{{canAbandon}}" class="danger-btn action-btn" bindtap="abandonTask">放弃任务</button>
     </view>
 
     <!-- 完成证据 -->
@@ -58,10 +83,6 @@
       <view class="evidence-item">{{item.type}}：{{item.value}}</view>
     </block>
 
-    <!-- 提交证据入口 -->
-    <view wx:if="{{canSubmitEvidence && !showEvidenceForm}}" class="evidence-submit-entry">
-      <button class="ghost-btn action-btn" bindtap="openEvidenceForm">+ 提交文字证据</button>
-    </view>
     <view wx:if="{{showEvidenceForm}}" class="evidence-form">
       <view class="label">证据内容</view>
       <textarea
