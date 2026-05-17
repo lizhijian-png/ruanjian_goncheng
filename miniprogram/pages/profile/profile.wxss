@@ -178,3 +178,74 @@
   height: 88rpx;
   margin-top: 12rpx;
 }
+
+/* Tab 栏 */
+.tab-bar {
+  display: flex;
+  background: rgba(255, 244, 230, 0.6);
+  border-radius: 18rpx;
+  padding: 6rpx;
+  margin-bottom: 24rpx;
+  gap: 6rpx;
+}
+
+.tab-item {
+  flex: 1;
+  text-align: center;
+  padding: 18rpx 0;
+  border-radius: 14rpx;
+  font-size: 28rpx;
+  color: var(--muted);
+  transition: all 0.2s;
+}
+
+.tab-active {
+  background: #ffffff;
+  color: var(--primary);
+  font-weight: 700;
+  box-shadow: 0 4rpx 12rpx rgba(255, 122, 89, 0.15);
+}
+
+/* 帖子卡片内部布局 */
+.my-post-main {
+  flex: 1;
+}
+
+.my-post-meta {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-top: 6rpx;
+}
+
+/* 角色标签 */
+.role-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4rpx 14rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+}
+
+.role-tag-publisher {
+  background: rgba(139, 111, 136, 0.12);
+  color: var(--muted);
+}
+
+.role-tag-buddy {
+  background: rgba(56, 189, 248, 0.14);
+  color: var(--accent);
+}
+
+/* 空状态 */
+.empty-tip {
+  text-align: center;
+  padding: 48rpx 0;
+  color: var(--muted);
+  font-size: 28rpx;
+}
+
+/* 积分行字号 */
+.small-text {
+  font-size: 22rpx;
+}
