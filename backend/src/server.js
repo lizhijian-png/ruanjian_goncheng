@@ -865,10 +865,45 @@ app.get('/api/users/:id/profile', async (req, res, next) => {
       return res.status(404).json({ message: '用户不存在' });
     }
 
-    const posts = await query('SELECT * FROM posts WHERE publisherId = ? ORDER BY createdAt DESC', [req.params.id]);
+    const publishedRows = await query(
+      'SELECT * FROM posts WHERE publisherId = ? ORDER BY createdAt DESC',
+      [req.params.id]
+    );
+    const joinedRows = await query(
+      `SELECT posts.* FROM posts
+       JOIN post_buddies ON posts.id = post_buddies.postId
+       WHERE post_buddies.userId = ?
+       ORDER BY posts.createdAt DESC`,
+      [req.params.id]
+    );
+
+    // 懒更新：同步每条帖子的时间驱动状态
+    const allRows = [...publishedRows, ...joinedRows];
+    for (const row of allRows) {
+      await syncPostStatus(row.id);
+    }
+
+    // 重新查询以获取 syncPostStatus 后的最新状态
+    const freshPublished = await query(
+      'SELECT * FROM posts WHERE publisherId = ? ORDER BY createdAt DESC',
+      [req.params.id]
+    );
+    const freshJoined = await query(
+      `SELECT posts.* FROM posts
+       JOIN post_buddies ON posts.id = post_buddies.postId
+       WHERE post_buddies.userId = ?
+       ORDER BY posts.createdAt DESC`,
+      [req.params.id]
+    );
+
+    const posts = [
+      ...freshPublished.map(row => ({ ...mapPost(row), role: 'publisher' })),
+      ...freshJoined.map(row => ({ ...mapPost(row), role: 'buddy' }))
+    ];
+
     return res.json({
       user: await buildUserResponse(user),
-      posts: posts.map(mapPost)
+      posts
     });
   } catch (error) {
     next(error);
