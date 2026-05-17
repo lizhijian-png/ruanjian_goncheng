@@ -217,7 +217,7 @@ async function createTables() {
   // 兼容旧表：搭子完成申请记录
   const completionRequestsCol = await query(`SHOW COLUMNS FROM posts LIKE 'completionRequests'`);
   if (completionRequestsCol.length === 0) {
-    await query(`ALTER TABLE posts ADD COLUMN completionRequests TEXT NOT NULL DEFAULT '[]'`);
+    await query(`ALTER TABLE posts ADD COLUMN completionRequests TEXT NULL`);
   }
 }
 
