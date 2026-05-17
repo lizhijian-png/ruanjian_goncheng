@@ -254,7 +254,9 @@ app.get('/api/posts/:id', async (req, res, next) => {
   try {
     await syncPostStatus(req.params.id);
     const postRows = await query(
-      `SELECT p.*, u.avatarUrl AS publisherAvatarUrl
+      `SELECT p.*, u.avatarUrl AS publisherAvatarUrl,
+              u.completionRate AS publisherCompletionRate,
+              u.points AS publisherPoints
        FROM posts p LEFT JOIN users u ON p.publisherId = u.id
        WHERE p.id = ?`,
       [req.params.id]
@@ -279,8 +281,13 @@ app.get('/api/posts/:id', async (req, res, next) => {
     );
     const hasEvidence = evidenceList.length > 0;
 
+    const publisherUser = postRow.publisherCompletionRate != null
+      ? { completionRate: postRow.publisherCompletionRate, points: postRow.publisherPoints }
+      : null;
+    const dynamicScore = calcRecommendedScore(postRow, publisherUser, null);
+
     return res.json({
-      post: mapPost(postRow),
+      post: { ...mapPost(postRow), recommendedScore: dynamicScore },
       evidenceList,
       evaluations,
       buddies,
