@@ -499,7 +499,9 @@ app.post('/api/posts/:id/join', async (req, res, next) => {
       );
 
       const newCount = post.currentBuddies + 1;
-      const newStatus = newCount >= post.maxBuddies ? '进行中' : '招募中';
+      const now = new Date();
+      const startReached = !post.startTime || new Date(post.startTime) <= now;
+      const newStatus = (newCount >= post.maxBuddies && startReached) ? '进行中' : '招募中';
       // buddyName 记录最后一位（保持向后兼容）
       await connection.execute(
         'UPDATE posts SET currentBuddies = ?, buddyName = ?, status = ? WHERE id = ?',
