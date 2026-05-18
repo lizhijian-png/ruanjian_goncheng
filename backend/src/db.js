@@ -54,8 +54,7 @@ function mapPost(row) {
     completionRequests: (() => {
       try { return JSON.parse(row.completionRequests || '[]'); } catch { return []; }
     })(),
-    publisherEvaluated: Boolean(row.publisherEvaluated),
-    buddyEvaluated: Boolean(row.buddyEvaluated),
+    evaluationDeadline: row.evaluationDeadline || null,
   };
 }
 
@@ -250,6 +249,25 @@ async function createTables() {
   const pbEvaluatedCol = await query(`SHOW COLUMNS FROM post_buddies LIKE 'evaluated'`);
   if (pbEvaluatedCol.length === 0) {
     await query(`ALTER TABLE post_buddies ADD COLUMN evaluated TINYINT(1) NOT NULL DEFAULT 0`);
+  }
+
+  // 迁移：evaluations 加 toId（被评价者）
+  const evalToIdCol = await query(`SHOW COLUMNS FROM evaluations LIKE 'toId'`);
+  if (evalToIdCol.length === 0) {
+    await query(`ALTER TABLE evaluations ADD COLUMN toId VARCHAR(64) NOT NULL DEFAULT '' AFTER fromId`);
+    await query(`ALTER TABLE evaluations ADD UNIQUE KEY uq_eval_from_to (postId, fromId, toId)`);
+  }
+
+  // 迁移：posts 加 evaluationDeadline
+  const evalDeadlineCol = await query(`SHOW COLUMNS FROM posts LIKE 'evaluationDeadline'`);
+  if (evalDeadlineCol.length === 0) {
+    await query(`ALTER TABLE posts ADD COLUMN evaluationDeadline DATETIME DEFAULT NULL`);
+  }
+
+  // 迁移：users 加 avgScore
+  const avgScoreCol = await query(`SHOW COLUMNS FROM users LIKE 'avgScore'`);
+  if (avgScoreCol.length === 0) {
+    await query(`ALTER TABLE users ADD COLUMN avgScore DECIMAL(3,1) DEFAULT NULL`);
   }
 }
 
