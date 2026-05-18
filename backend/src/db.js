@@ -245,6 +245,12 @@ async function createTables() {
         ADD UNIQUE KEY uq_evidence_post_user (postId, submitterId)
     `);
   }
+
+  // 兼容旧表：post_buddies 加 evaluated 标志位（替代 posts.buddyEvaluated）
+  const pbEvaluatedCol = await query(`SHOW COLUMNS FROM post_buddies LIKE 'evaluated'`);
+  if (pbEvaluatedCol.length === 0) {
+    await query(`ALTER TABLE post_buddies ADD COLUMN evaluated TINYINT(1) NOT NULL DEFAULT 0`);
+  }
 }
 
 
