@@ -72,9 +72,10 @@ Page({
 
       // 共同（参与者在待评价阶段）
       const isParticipant = isPublisher || isBuddy;
+      const myBuddy = buddies.find(b => b.userId === currentUserId);
       const myEvaluated = isPublisher
         ? Boolean(post.publisherEvaluated)
-        : isBuddy ? Boolean(post.buddyEvaluated) : false;
+        : isBuddy ? Boolean(myBuddy && myBuddy.evaluated) : false;
       const canSubmitEvidence = isParticipant && post.status === '待评价' && !myEvaluated;
       const canEvaluate = isParticipant && post.status === '待评价' && hasEvidence && !myEvaluated;
 

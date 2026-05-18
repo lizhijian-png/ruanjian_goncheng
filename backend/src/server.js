@@ -276,7 +276,7 @@ app.get('/api/posts/:id', async (req, res, next) => {
       [req.params.id]
     );
     const buddies = await query(
-      'SELECT userId, nickname, joinedAt FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC',
+      'SELECT userId, nickname, joinedAt, evaluated FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC',
       [req.params.id]
     );
     const hasEvidence = evidenceList.length > 0;
@@ -511,7 +511,7 @@ app.post('/api/posts/:id/join', async (req, res, next) => {
 
     const fresh = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     const buddies = await query(
-      'SELECT userId, nickname, joinedAt FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC',
+      'SELECT userId, nickname, joinedAt, evaluated FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC',
       [req.params.id]
     );
     res.json({ post: mapPost(fresh[0]), buddies });
@@ -566,7 +566,7 @@ app.post('/api/posts/:id/quit', async (req, res, next) => {
 
     const fresh = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     const buddies = await query(
-      'SELECT userId, nickname, joinedAt FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC',
+      'SELECT userId, nickname, joinedAt, evaluated FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC',
       [req.params.id]
     );
     res.json({ post: mapPost(fresh[0]), buddies });
