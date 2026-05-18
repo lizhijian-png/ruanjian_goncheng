@@ -12,32 +12,34 @@ Page({
   data: {
     post: null,
     evidenceList: [],
-    evaluations: [],
+    evaluationsSent: [],
+    evaluationsReceived: [],
     buddies: [],
     hasEvidence: false,
     currentUserId: '',
     isPublisher: false,
     isBuddy: false,
-    // 游客
     canJoin: false,
-    // 发布者
     canStart: false,
     canMarkDone: false,
     canAbandon: false,
-    // 搭子
     canQuit: false,
     canRequestComplete: false,
     hasRequested: false,
-    // 共同
     canSubmitEvidence: false,
     canEvaluate: false,
-    myEvaluated: false,
-    // 申请完成展示
     completionStatusList: [],
-    // 表单
+    evalDeadlineText: '',
+    // 证据表单
     showEvidenceForm: false,
     evidenceInput: '',
+    // 人员选择弹层
+    showPersonPicker: false,
+    evalTargets: [],
+    // 评价表单
     showEvalForm: false,
+    evalTargetId: '',
+    evalTargetName: '',
     evalScore: 5,
     evalContent: ''
   },
@@ -50,36 +52,46 @@ Page({
   },
   async _loadDetail(postId) {
     try {
-      const detail = await api.getPostDetail(postId || this.data.post.id);
-      const { post, evidenceList, evaluations, buddies = [], hasEvidence = false } = detail;
       const { currentUserId } = this.data;
+      const detail = await api.getPostDetail(postId || this.data.post.id, currentUserId);
+      const { post, evidenceList, evaluationsSent = [], evaluationsReceived = [], buddies = [], hasEvidence = false } = detail;
       const isPublisher = post.publisherId === currentUserId;
       const isBuddy = buddies.some(b => b.userId === currentUserId);
       const completionRequests = post.completionRequests || [];
 
-      // 游客
       const canJoin = !isPublisher && !isBuddy && post.status === '招募中' && post.currentBuddies < post.maxBuddies;
-
-      // 发布者
       const canStart = isPublisher && post.status === '招募中' && post.currentBuddies >= 1;
       const canMarkDone = isPublisher && post.status === '进行中';
       const canAbandon = isPublisher && (post.status === '招募中' || post.status === '进行中');
-
-      // 搭子
       const canQuit = isBuddy && (post.status === '招募中' || post.status === '进行中');
       const hasRequested = completionRequests.includes(currentUserId);
       const canRequestComplete = isBuddy && post.status === '进行中' && !hasRequested;
-
-      // 共同（参与者在待评价阶段）
       const isParticipant = isPublisher || isBuddy;
-      const myBuddy = buddies.find(b => b.userId === currentUserId);
-      const myEvaluated = isPublisher
-        ? Boolean(post.publisherEvaluated)
-        : isBuddy ? Boolean(myBuddy && myBuddy.evaluated) : false;
-      const canSubmitEvidence = isParticipant && post.status === '待评价' && !myEvaluated;
-      const canEvaluate = isParticipant && post.status === '待评价' && hasEvidence && !myEvaluated;
+      const canSubmitEvidence = isParticipant && post.status === '待评价';
+      const canEvaluate = isParticipant && post.status === '待评价';
 
-      // 申请完成展示列表（进行中时，所有搭子的申请状态）
+      let evalDeadlineText = '';
+      if (post.status === '待评价' && post.evaluationDeadline) {
+        const diff = new Date(post.evaluationDeadline) - new Date();
+        if (diff > 0) {
+          const h = Math.floor(diff / 3600000);
+          const m = Math.floor((diff % 3600000) / 60000);
+          evalDeadlineText = `还有 ${h} 小时 ${m} 分钟`;
+        } else {
+          evalDeadlineText = '评价窗口已结束';
+        }
+      }
+
+      const evaluatedToIds = new Set(evaluationsSent.map(e => e.toId));
+      const others = isPublisher
+        ? buddies
+        : [{ userId: post.publisherId, nickname: post.publisher }, ...buddies.filter(b => b.userId !== currentUserId)];
+      const evalTargets = others.map(p => ({
+        userId: p.userId,
+        nickname: p.nickname,
+        evaluated: evaluatedToIds.has(p.userId)
+      }));
+
       const completionStatusList = buddies.map(b => ({
         userId: b.userId,
         nickname: b.nickname,
@@ -87,17 +99,13 @@ Page({
       }));
 
       this.setData({
-        post: {
-          ...post,
-          startTime: formatTime(post.startTime),
-          endTime: formatTime(post.endTime)
-        },
-        evidenceList, evaluations, buddies, hasEvidence,
+        post: { ...post, startTime: formatTime(post.startTime), endTime: formatTime(post.endTime) },
+        evidenceList, evaluationsSent, evaluationsReceived, buddies, hasEvidence,
         isPublisher, isBuddy,
         canJoin, canStart, canMarkDone, canAbandon,
         canQuit, canRequestComplete, hasRequested,
-        canSubmitEvidence, canEvaluate, myEvaluated,
-        completionStatusList
+        canSubmitEvidence, canEvaluate,
+        completionStatusList, evalDeadlineText, evalTargets
       });
     } catch (error) {
       wx.showToast({ title: error.message || '加载详情失败', icon: 'none' });
@@ -218,11 +226,26 @@ Page({
       wx.showToast({ title: error.message || '提交失败', icon: 'none' });
     }
   },
-  openEvalForm() {
-    this.setData({ showEvalForm: true, evalScore: 5, evalContent: '' });
+  openPersonPicker() {
+    this.setData({ showPersonPicker: true });
+  },
+  closePersonPicker() {
+    this.setData({ showPersonPicker: false });
+  },
+  openEvalFormForPerson(e) {
+    const { userid, nickname, evaluated } = e.currentTarget.dataset;
+    if (evaluated) return;
+    this.setData({
+      showPersonPicker: false,
+      showEvalForm: true,
+      evalTargetId: userid,
+      evalTargetName: nickname,
+      evalScore: 5,
+      evalContent: ''
+    });
   },
   closeEvalForm() {
-    this.setData({ showEvalForm: false });
+    this.setData({ showEvalForm: false, evalTargetId: '', evalTargetName: '' });
   },
   onEvalScoreChange(e) {
     this.setData({ evalScore: Number(e.detail.value) });
@@ -231,18 +254,21 @@ Page({
     this.setData({ evalContent: e.detail.value });
   },
   async submitEvaluation() {
-    const { post, currentUserId, evalScore, evalContent } = this.data;
+    const { post, currentUserId, evalTargetId, evalScore, evalContent } = this.data;
     if (!String(evalContent).trim()) {
       wx.showToast({ title: '请填写评价内容', icon: 'none' });
       return;
     }
     try {
-      await api.submitEvaluation(post.id, currentUserId, evalScore, evalContent);
+      await api.submitEvaluation(post.id, currentUserId, evalTargetId, evalScore, evalContent);
       wx.showToast({ title: '评价已提交', icon: 'success' });
-      this.setData({ showEvalForm: false });
+      this.setData({ showEvalForm: false, evalTargetId: '', evalTargetName: '' });
       await this._loadDetail(post.id);
     } catch (error) {
       wx.showToast({ title: error.message || '提交失败', icon: 'none' });
     }
-  }
+  },
+  backToPersonPicker() {
+    this.setData({ showEvalForm: false, showPersonPicker: true });
+  },
 });
