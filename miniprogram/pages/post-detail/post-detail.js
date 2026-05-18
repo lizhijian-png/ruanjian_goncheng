@@ -68,9 +68,9 @@ Page({
       const canRequestComplete = isBuddy && post.status === '进行中' && !hasRequested;
       const isParticipant = isPublisher || isBuddy;
       const canSubmitEvidence = isParticipant && post.status === '待评价';
-      const canEvaluate = isParticipant && post.status === '待评价';
 
       let evalDeadlineText = '';
+      let deadlineExpired = false;
       if (post.status === '待评价' && post.evaluationDeadline) {
         const diff = new Date(post.evaluationDeadline) - new Date();
         if (diff > 0) {
@@ -79,8 +79,10 @@ Page({
           evalDeadlineText = `还有 ${h} 小时 ${m} 分钟`;
         } else {
           evalDeadlineText = '评价窗口已结束';
+          deadlineExpired = true;
         }
       }
+      const canEvaluate = isParticipant && post.status === '待评价' && !deadlineExpired;
 
       const evaluatedToIds = new Set(evaluationsSent.map(e => e.toId));
       const others = isPublisher
