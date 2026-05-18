@@ -305,26 +305,38 @@ app.get('/api/posts/:id', async (req, res, next) => {
       [req.params.id]
     );
     const postRow = postRows[0];
-
-    if (!postRow) {
-      return res.status(404).json({ message: '帖子不存在' });
-    }
+    if (!postRow) return res.status(404).json({ message: '帖子不存在' });
 
     const evidenceList = await query(
       'SELECT submitterId, submitterName, type, value FROM evidences WHERE postId = ? ORDER BY createdAt ASC',
       [req.params.id]
     );
-    const evaluations = await query(
-      'SELECT fromId, fromName AS `from`, score, content FROM evaluations WHERE postId = ? ORDER BY createdAt ASC',
-      [req.params.id]
-    );
     const buddies = await query(
-      'SELECT userId, nickname, joinedAt, evaluated FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC',
+      'SELECT userId, nickname, joinedAt FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC',
       [req.params.id]
     );
-    const participantIds = [postRow.publisherId, ...buddies.map(b => b.userId)];
+
+    const viewerId = req.query.viewerId || '';
+    let evaluationsSent = [];
+    let evaluationsReceived = [];
+    if (viewerId) {
+      evaluationsSent = await query(
+        `SELECT e.toId, u.nickname AS toName, e.score, e.content, e.createdAt
+         FROM evaluations e LEFT JOIN users u ON e.toId = u.id
+         WHERE e.postId = ? AND e.fromId = ? ORDER BY e.createdAt ASC`,
+        [req.params.id, viewerId]
+      );
+      evaluationsReceived = await query(
+        `SELECT e.fromId, e.fromName, e.score, e.content, e.createdAt
+         FROM evaluations e
+         WHERE e.postId = ? AND e.toId = ? ORDER BY e.createdAt ASC`,
+        [req.params.id, viewerId]
+      );
+    }
+
+    const participantIds = new Set([postRow.publisherId, ...buddies.map(b => b.userId)]);
     const evidenceSubmitters = new Set(evidenceList.map(e => e.submitterId));
-    const hasEvidence = participantIds.length > 0 && participantIds.every(id => evidenceSubmitters.has(id));
+    const hasEvidence = participantIds.size > 0 && [...participantIds].every(id => evidenceSubmitters.has(id));
 
     const publisherUser = postRow.publisherCompletionRate != null
       ? { completionRate: postRow.publisherCompletionRate, points: postRow.publisherPoints }
@@ -334,9 +346,10 @@ app.get('/api/posts/:id', async (req, res, next) => {
     return res.json({
       post: { ...mapPost(postRow), recommendedScore: dynamicScore },
       evidenceList,
-      evaluations,
       buddies,
-      hasEvidence
+      hasEvidence,
+      evaluationsSent,
+      evaluationsReceived
     });
   } catch (error) {
     next(error);
@@ -759,6 +772,20 @@ app.post('/api/posts/:id/evaluate', async (req, res, next) => {
 
     const finalPost = (await query('SELECT * FROM posts WHERE id = ?', [req.params.id]))[0];
     res.status(201).json({ post: mapPost(finalPost) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/users/:id/evaluations-received', async (req, res, next) => {
+  try {
+    const rows = await query(
+      `SELECT e.postId, e.fromId, e.fromName, e.score, e.content, e.createdAt
+       FROM evaluations e
+       WHERE e.toId = ? ORDER BY e.createdAt DESC`,
+      [req.params.id]
+    );
+    res.json(rows);
   } catch (error) {
     next(error);
   }
