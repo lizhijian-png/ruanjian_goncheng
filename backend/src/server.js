@@ -46,9 +46,45 @@ async function syncPostStatus(postId) {
 
   if (post.status === '进行中') {
     if (post.endTime && now >= new Date(post.endTime)) {
-      await query('UPDATE posts SET status = ? WHERE id = ?', ['待评价', postId]);
+      const deadline = new Date(now.getTime() + 32 * 60 * 60 * 1000);
+      await query(
+        'UPDATE posts SET status = ?, evaluationDeadline = ? WHERE id = ?',
+        ['待评价', deadline, postId]
+      );
+    }
+    return;
+  }
+
+  if (post.status === '待评价') {
+    if (post.evaluationDeadline && now >= new Date(post.evaluationDeadline)) {
+      await settlePost(postId);
     }
   }
+}
+
+async function settlePost(postId) {
+  const rows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
+  const post = rows[0];
+  if (!post || post.status !== '待评价') return;
+
+  const allBuddies = await query('SELECT userId FROM post_buddies WHERE postId = ?', [postId]);
+  await withTransaction(async (connection) => {
+    await connection.execute(
+      'UPDATE posts SET status = ?, progress = 100 WHERE id = ?',
+      ['已完成', postId]
+    );
+    await connection.execute(
+      'UPDATE users SET points = points + ? WHERE id = ?',
+      [post.reward, post.publisherId]
+    );
+    for (const buddy of allBuddies) {
+      await connection.execute(
+        'UPDATE users SET points = points + ? WHERE id = ?',
+        [post.reward, buddy.userId]
+      );
+    }
+  });
+  await recalcCompletionRate(post.publisherId);
 }
 
 function calcRecommendedScore(post, publisherUser, preferenceMap) {
@@ -279,7 +315,9 @@ app.get('/api/posts/:id', async (req, res, next) => {
       'SELECT userId, nickname, joinedAt, evaluated FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC',
       [req.params.id]
     );
-    const hasEvidence = evidenceList.length > 0;
+    const participantIds = [postRow.publisherId, ...buddies.map(b => b.userId)];
+    const evidenceSubmitters = new Set(evidenceList.map(e => e.submitterId));
+    const hasEvidence = participantIds.length > 0 && participantIds.every(id => evidenceSubmitters.has(id));
 
     const publisherUser = postRow.publisherCompletionRate != null
       ? { completionRate: postRow.publisherCompletionRate, points: postRow.publisherPoints }
@@ -558,9 +596,12 @@ app.post('/api/posts/:id/quit', async (req, res, next) => {
         [req.params.id]
       );
       const lastNickname = remaining[0][0] ? remaining[0][0].nickname : '';
+      const [statusRows] = await connection.execute('SELECT status FROM posts WHERE id = ?', [req.params.id]);
+      const currentStatus = statusRows[0]?.status;
+      const newStatus = (currentStatus === '进行中' && newCount >= 1) ? '进行中' : '招募中';
       await connection.execute(
         'UPDATE posts SET currentBuddies = ?, buddyName = ?, status = ? WHERE id = ?',
-        [newCount, lastNickname, '招募中', req.params.id]
+        [newCount, lastNickname, newStatus, req.params.id]
       );
     });
 
@@ -706,9 +747,12 @@ app.post('/api/posts/:id/evaluate', async (req, res, next) => {
     if (post.endTime && new Date(post.endTime) > now) {
       return res.status(400).json({ message: '任务尚未到结束时间，不能提交互评' });
     }
-    const evidences = await query('SELECT id FROM evidences WHERE postId = ? LIMIT 1', [req.params.id]);
-    if (evidences.length === 0) {
-      return res.status(400).json({ message: '对方尚未上传证据，不能提交互评' });
+    const allBuddies = await query('SELECT userId FROM post_buddies WHERE postId = ?', [req.params.id]);
+    const participantIds = [post.publisherId, ...allBuddies.map(b => b.userId)];
+    const evidences = await query('SELECT submitterId FROM evidences WHERE postId = ?', [req.params.id]);
+    const evidenceSubmitters = new Set(evidences.map(e => e.submitterId));
+    if (!participantIds.every(id => evidenceSubmitters.has(id))) {
+      return res.status(400).json({ message: '所有参与者均需上传证据后才能提交互评' });
     }
 
     const user = await getUserById(userId);
