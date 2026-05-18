@@ -712,105 +712,50 @@ app.post('/api/posts/:id/complete', async (req, res, next) => {
 app.post('/api/posts/:id/evaluate', async (req, res, next) => {
   try {
     await syncPostStatus(req.params.id);
-    const { userId, score, content } = req.body;
-    if (!userId || !score || !String(content || '').trim()) {
-      return res.status(400).json({ message: '缺少 userId、score 或评价内容' });
+    const { userId, toId, score, content } = req.body;
+    if (!userId || !toId || !score || !String(content || '').trim()) {
+      return res.status(400).json({ message: '缺少 userId、toId、score 或评价内容' });
     }
     const s = Number(score);
     if (!Number.isInteger(s) || s < 1 || s > 5) {
       return res.status(400).json({ message: '评分须为 1-5 的整数' });
     }
+    if (userId === toId) {
+      return res.status(400).json({ message: '不能评价自己' });
+    }
 
     const postRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     const post = postRows[0];
-    if (!post) {
-      return res.status(404).json({ message: '帖子不存在' });
-    }
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
     if (post.status !== '待评价') {
       return res.status(400).json({ message: '只有待评价状态的任务才能提交互评' });
     }
 
-    // 判断当前用户是发布者还是搭子
-    const isPublisher = post.publisherId === userId;
-    const buddyRows = await query(
-      'SELECT userId, nickname, evaluated FROM post_buddies WHERE postId = ? AND userId = ?',
-      [req.params.id, userId]
-    );
-    const isBuddy = buddyRows.length > 0;
-    if (!isPublisher && !isBuddy) {
+    const allBuddies = await query('SELECT userId FROM post_buddies WHERE postId = ?', [req.params.id]);
+    const participantIds = new Set([post.publisherId, ...allBuddies.map(b => b.userId)]);
+    if (!participantIds.has(userId)) {
       return res.status(403).json({ message: '只有参与者才能提交互评' });
     }
-
-    // 防重复提交
-    if (isPublisher && post.publisherEvaluated) {
-      return res.status(400).json({ message: '你已经提交过评价了' });
-    }
-    if (isBuddy && buddyRows[0].evaluated) {
-      return res.status(400).json({ message: '你已经提交过评价了' });
+    if (!participantIds.has(toId)) {
+      return res.status(400).json({ message: '被评价者不是该任务参与者' });
     }
 
-    // 必须：已过结束时间 且 已有证据
-    const now = new Date();
-    if (post.endTime && new Date(post.endTime) > now) {
-      return res.status(400).json({ message: '任务尚未到结束时间，不能提交互评' });
-    }
-    const allBuddies = await query('SELECT userId FROM post_buddies WHERE postId = ?', [req.params.id]);
-    const participantIds = [post.publisherId, ...allBuddies.map(b => b.userId)];
-    const evidences = await query('SELECT submitterId FROM evidences WHERE postId = ?', [req.params.id]);
-    const evidenceSubmitters = new Set(evidences.map(e => e.submitterId));
-    if (!participantIds.every(id => evidenceSubmitters.has(id))) {
-      return res.status(400).json({ message: '所有参与者均需上传证据后才能提交互评' });
+    const existing = await query(
+      'SELECT id FROM evaluations WHERE postId = ? AND fromId = ? AND toId = ?',
+      [req.params.id, userId, toId]
+    );
+    if (existing.length > 0) {
+      return res.status(400).json({ message: '你已经评价过该参与者了' });
     }
 
     const user = await getUserById(userId);
     const evalId = createId('ev');
     await query(
-      'INSERT INTO evaluations (id, postId, fromId, fromName, score, content) VALUES (?, ?, ?, ?, ?, ?)',
-      [evalId, req.params.id, userId, user.nickname, s, String(content).trim()]
+      'INSERT INTO evaluations (id, postId, fromId, fromName, toId, score, content) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [evalId, req.params.id, userId, user.nickname, toId, s, String(content).trim()]
     );
 
-    // 更新对应标志位
-    if (isPublisher) {
-      await query('UPDATE posts SET publisherEvaluated = 1 WHERE id = ?', [req.params.id]);
-    } else {
-      await query('UPDATE post_buddies SET evaluated = 1 WHERE postId = ? AND userId = ?', [req.params.id, userId]);
-    }
-
-    // 重新读取最新 post 状态
-    const freshPost = (await query('SELECT * FROM posts WHERE id = ?', [req.params.id]))[0];
-
-    // 所有参与者都已评价 → 已完成，结算积分
-    const unevaluatedBuddies = await query(
-      'SELECT userId FROM post_buddies WHERE postId = ? AND evaluated = 0',
-      [req.params.id]
-    );
-    const allBuddiesEvaluated = unevaluatedBuddies.length === 0;
-
-    if (freshPost.publisherEvaluated && allBuddiesEvaluated) {
-      const allBuddies = await query(
-        'SELECT userId FROM post_buddies WHERE postId = ?',
-        [req.params.id]
-      );
-      await withTransaction(async (connection) => {
-        await connection.execute(
-          'UPDATE posts SET status = ?, progress = 100 WHERE id = ?',
-          ['已完成', req.params.id]
-        );
-        // 发布者获得奖励积分
-        await connection.execute(
-          'UPDATE users SET points = points + ? WHERE id = ?',
-          [freshPost.reward, freshPost.publisherId]
-        );
-        // 每位搭子也获得奖励积分
-        for (const buddy of allBuddies) {
-          await connection.execute(
-            'UPDATE users SET points = points + ? WHERE id = ?',
-            [freshPost.reward, buddy.userId]
-          );
-        }
-      });
-      await recalcCompletionRate(freshPost.publisherId);
-    }
+    await updateUserAvgScore(toId);
 
     const finalPost = (await query('SELECT * FROM posts WHERE id = ?', [req.params.id]))[0];
     res.status(201).json({ post: mapPost(finalPost) });
@@ -827,6 +772,15 @@ async function recalcCompletionRate(userId) {
   const { total, done } = rows[0];
   const rate = total > 0 ? Math.round(((done || 0) / total) * 100) : 0;
   await query('UPDATE users SET completionRate = ? WHERE id = ?', [rate, userId]);
+}
+
+async function updateUserAvgScore(userId) {
+  const rows = await query(
+    'SELECT AVG(score) AS avg FROM evaluations WHERE toId = ?',
+    [userId]
+  );
+  const avg = rows[0] && rows[0].avg != null ? Number(rows[0].avg).toFixed(1) : null;
+  await query('UPDATE users SET avgScore = ? WHERE id = ?', [avg, userId]);
 }
 
 app.post('/api/posts/:id/abandon', async (req, res, next) => {
