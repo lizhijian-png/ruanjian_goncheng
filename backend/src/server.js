@@ -683,7 +683,7 @@ app.post('/api/posts/:id/evaluate', async (req, res, next) => {
     // 判断当前用户是发布者还是搭子
     const isPublisher = post.publisherId === userId;
     const buddyRows = await query(
-      'SELECT userId, nickname FROM post_buddies WHERE postId = ? AND userId = ?',
+      'SELECT userId, nickname, evaluated FROM post_buddies WHERE postId = ? AND userId = ?',
       [req.params.id, userId]
     );
     const isBuddy = buddyRows.length > 0;
@@ -695,7 +695,7 @@ app.post('/api/posts/:id/evaluate', async (req, res, next) => {
     if (isPublisher && post.publisherEvaluated) {
       return res.status(400).json({ message: '你已经提交过评价了' });
     }
-    if (isBuddy && post.buddyEvaluated) {
+    if (isBuddy && buddyRows[0].evaluated) {
       return res.status(400).json({ message: '你已经提交过评价了' });
     }
 
@@ -717,8 +717,11 @@ app.post('/api/posts/:id/evaluate', async (req, res, next) => {
     );
 
     // 更新对应标志位
-    const flagField = isPublisher ? 'publisherEvaluated' : 'buddyEvaluated';
-    await query(`UPDATE posts SET ${flagField} = 1 WHERE id = ?`, [req.params.id]);
+    if (isPublisher) {
+      await query('UPDATE posts SET publisherEvaluated = 1 WHERE id = ?', [req.params.id]);
+    } else {
+      await query('UPDATE post_buddies SET evaluated = 1 WHERE postId = ? AND userId = ?', [req.params.id, userId]);
+    }
 
     // 重新读取最新 post 状态
     const freshPost = (await query('SELECT * FROM posts WHERE id = ?', [req.params.id]))[0];
