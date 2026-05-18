@@ -726,17 +726,35 @@ app.post('/api/posts/:id/evaluate', async (req, res, next) => {
     // 重新读取最新 post 状态
     const freshPost = (await query('SELECT * FROM posts WHERE id = ?', [req.params.id]))[0];
 
-    // 双方都已评价 → 已完成，结算积分
-    if (freshPost.publisherEvaluated && freshPost.buddyEvaluated) {
+    // 所有参与者都已评价 → 已完成，结算积分
+    const unevaluatedBuddies = await query(
+      'SELECT userId FROM post_buddies WHERE postId = ? AND evaluated = 0',
+      [req.params.id]
+    );
+    const allBuddiesEvaluated = unevaluatedBuddies.length === 0;
+
+    if (freshPost.publisherEvaluated && allBuddiesEvaluated) {
+      const allBuddies = await query(
+        'SELECT userId FROM post_buddies WHERE postId = ?',
+        [req.params.id]
+      );
       await withTransaction(async (connection) => {
         await connection.execute(
           'UPDATE posts SET status = ?, progress = 100 WHERE id = ?',
           ['已完成', req.params.id]
         );
+        // 发布者获得奖励积分
         await connection.execute(
           'UPDATE users SET points = points + ? WHERE id = ?',
           [freshPost.reward, freshPost.publisherId]
         );
+        // 每位搭子也获得奖励积分
+        for (const buddy of allBuddies) {
+          await connection.execute(
+            'UPDATE users SET points = points + ? WHERE id = ?',
+            [freshPost.reward, buddy.userId]
+          );
+        }
       });
       await recalcCompletionRate(freshPost.publisherId);
     }
