@@ -63,28 +63,35 @@ async function syncPostStatus(postId) {
 }
 
 async function settlePost(postId) {
-  const rows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
-  const post = rows[0];
-  if (!post || post.status !== '待评价') return;
-
-  const allBuddies = await query('SELECT userId FROM post_buddies WHERE postId = ?', [postId]);
+  let publisherId = null;
   await withTransaction(async (connection) => {
-    await connection.execute(
-      'UPDATE posts SET status = ?, progress = 100 WHERE id = ?',
-      ['已完成', postId]
+    // 原子性状态检查：只有第一个到达的请求能将 待评价→已完成
+    const [result] = await connection.execute(
+      "UPDATE posts SET status = '已完成', progress = 100 WHERE id = ? AND status = '待评价'",
+      [postId]
     );
+    if (result.affectedRows === 0) return; // 已被其他请求结算，跳过
+
+    const [postRows] = await connection.execute('SELECT * FROM posts WHERE id = ?', [postId]);
+    const post = postRows[0];
+    publisherId = post.publisherId;
+
     await connection.execute(
       'UPDATE users SET points = points + ? WHERE id = ?',
-      [post.reward, post.publisherId]
+      [post.reward || 0, post.publisherId]
     );
-    for (const buddy of allBuddies) {
+    const [buddyRows] = await connection.execute(
+      'SELECT userId FROM post_buddies WHERE postId = ?',
+      [postId]
+    );
+    for (const buddy of buddyRows) {
       await connection.execute(
         'UPDATE users SET points = points + ? WHERE id = ?',
-        [post.reward, buddy.userId]
+        [post.reward || 0, buddy.userId]
       );
     }
   });
-  await recalcCompletionRate(post.publisherId);
+  if (publisherId) await recalcCompletionRate(publisherId);
 }
 
 function calcRecommendedScore(post, publisherUser, preferenceMap) {
