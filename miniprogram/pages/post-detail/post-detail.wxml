@@ -69,11 +69,9 @@
       <!-- 参与者：待评价可提交证据 -->
       <button wx:if="{{canSubmitEvidence && !showEvidenceForm}}" class="ghost-btn action-btn" bindtap="openEvidenceForm">+ 提交文字证据</button>
 
-      <!-- 参与者：待评价可提交互评 -->
-      <button wx:if="{{canEvaluate}}" class="primary-btn action-btn" bindtap="openEvalForm">提交互评</button>
-
-      <!-- 已评价提示 -->
-      <view wx:if="{{(isPublisher || isBuddy) && post.status === '待评价' && myEvaluated}}" class="eval-done-hint">你已提交评价，等待对方评价中…</view>
+      <!-- 参与者：待评价可评价他人 -->
+      <view wx:if="{{canEvaluate}}" class="eval-deadline-hint">评价窗口：{{evalDeadlineText}}</view>
+      <button wx:if="{{canEvaluate}}" class="primary-btn action-btn" bindtap="openPersonPicker">评价</button>
     </view>
 
     <!-- 完成证据 -->
@@ -98,9 +96,29 @@
       </view>
     </view>
 
-    <!-- 互评表单 -->
+    <!-- 人员选择弹层 -->
+    <view wx:if="{{showPersonPicker}}" class="person-picker-overlay">
+      <view class="person-picker-panel">
+        <view class="person-picker-title">选择要评价的人</view>
+        <block wx:for="{{evalTargets}}" wx:key="userId">
+          <view
+            class="person-picker-item {{item.evaluated ? 'person-evaluated' : ''}}"
+            bindtap="openEvalFormForPerson"
+            data-userid="{{item.userId}}"
+            data-nickname="{{item.nickname}}"
+            data-evaluated="{{item.evaluated}}"
+          >
+            <view class="person-name">{{item.nickname}}</view>
+            <view class="person-status">{{item.evaluated ? '已评价' : '未评价'}}</view>
+          </view>
+        </block>
+        <button class="ghost-btn person-picker-close" bindtap="closePersonPicker">关闭</button>
+      </view>
+    </view>
+
+    <!-- 评价表单（对某人） -->
     <view wx:if="{{showEvalForm}}" class="eval-form">
-      <view class="section-title">提交互评</view>
+      <view class="section-title">评价 {{evalTargetName}}</view>
       <view class="eval-score-row">
         <view class="label">评分：{{evalScore}} 分</view>
         <slider
@@ -121,17 +139,27 @@
         value="{{evalContent}}"
       />
       <view class="evidence-form-btns">
-        <button class="ghost-btn evidence-btn" bindtap="closeEvalForm">取消</button>
+        <button class="ghost-btn evidence-btn" bindtap="backToPersonPicker">返回</button>
         <button class="primary-btn evidence-btn" bindtap="submitEvaluation">提交</button>
       </view>
     </view>
 
-    <!-- 互评记录 -->
-    <view class="section-title detail-section">互评记录</view>
-    <view wx:if="{{evaluations.length === 0}}" class="muted empty-hint">暂无评价</view>
-    <block wx:for="{{evaluations}}" wx:key="from">
+    <!-- 我对他人的评价 -->
+    <view wx:if="{{isPublisher || isBuddy}}" class="section-title detail-section">我对他人的评价</view>
+    <view wx:if="{{(isPublisher || isBuddy) && evaluationsSent.length === 0}}" class="muted empty-hint">暂未评价任何人</view>
+    <block wx:for="{{evaluationsSent}}" wx:key="toId">
       <view class="evaluation-item">
-        <view class="evaluation-head">{{item.from}} · {{item.score}} / 5</view>
+        <view class="evaluation-head">对 {{item.toName}} · {{item.score}} / 5</view>
+        <view class="muted">{{item.content}}</view>
+      </view>
+    </block>
+
+    <!-- 他人对我的评价 -->
+    <view wx:if="{{isPublisher || isBuddy}}" class="section-title detail-section">他人对我的评价</view>
+    <view wx:if="{{(isPublisher || isBuddy) && evaluationsReceived.length === 0}}" class="muted empty-hint">暂无他人评价</view>
+    <block wx:for="{{evaluationsReceived}}" wx:key="fromId">
+      <view class="evaluation-item">
+        <view class="evaluation-head">{{item.fromName}} · {{item.score}} / 5</view>
         <view class="muted">{{item.content}}</view>
       </view>
     </block>
