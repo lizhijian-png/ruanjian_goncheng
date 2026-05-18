@@ -50,8 +50,9 @@ function getFeed({ category = '', startAfter = '', endBefore = '', keyword = '',
   return request({ url: `/api/posts?${params.join('&')}` });
 }
 
-function getPostDetail(id) {
-  return request({ url: `/api/posts/${id}` });
+function getPostDetail(id, viewerId) {
+  const qs = viewerId ? `?viewerId=${encodeURIComponent(viewerId)}` : '';
+  return request({ url: `/api/posts/${id}${qs}` });
 }
 
 function getRanking() {
@@ -125,11 +126,11 @@ function abandonPost(id, userId) {
   });
 }
 
-function submitEvaluation(postId, userId, score, content) {
+function submitEvaluation(postId, userId, toId, score, content) {
   return request({
     url: `/api/posts/${postId}/evaluate`,
     method: 'POST',
-    data: { userId, score, content }
+    data: { userId, toId, score, content }
   });
 }
 
@@ -157,6 +158,10 @@ function updateProfile(userId, payload) {
   });
 }
 
+function getEvaluationsReceived(userId) {
+  return request({ url: `/api/users/${userId}/evaluations-received` });
+}
+
 module.exports = {
   login,
   bind,
@@ -175,5 +180,6 @@ module.exports = {
   abandonPost,
   submitEvaluation,
   startPost,
-  requestComplete
+  requestComplete,
+  getEvaluationsReceived
 };
