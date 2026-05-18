@@ -270,6 +270,15 @@ async function createTables() {
   if (avgScoreCol.length === 0) {
     await query(`ALTER TABLE users ADD COLUMN avgScore DECIMAL(3,1) DEFAULT NULL`);
   }
+
+  // 迁移：evaluations.toId 加独立索引，加速 WHERE toId=? 查询
+  const evalToIdIdx = await query(`
+    SELECT INDEX_NAME FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'evaluations' AND INDEX_NAME = 'idx_eval_toId'
+  `);
+  if (evalToIdIdx.length === 0) {
+    await query(`ALTER TABLE evaluations ADD INDEX idx_eval_toId (toId)`);
+  }
 }
 
 

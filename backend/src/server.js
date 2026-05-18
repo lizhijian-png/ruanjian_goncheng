@@ -320,18 +320,20 @@ app.get('/api/posts/:id', async (req, res, next) => {
     let evaluationsSent = [];
     let evaluationsReceived = [];
     if (viewerId) {
-      evaluationsSent = await query(
-        `SELECT e.toId, u.nickname AS toName, e.score, e.content, e.createdAt
-         FROM evaluations e LEFT JOIN users u ON e.toId = u.id
-         WHERE e.postId = ? AND e.fromId = ? ORDER BY e.createdAt ASC`,
-        [req.params.id, viewerId]
-      );
-      evaluationsReceived = await query(
-        `SELECT e.fromId, e.fromName, e.score, e.content, e.createdAt
-         FROM evaluations e
-         WHERE e.postId = ? AND e.toId = ? ORDER BY e.createdAt ASC`,
-        [req.params.id, viewerId]
-      );
+      [evaluationsSent, evaluationsReceived] = await Promise.all([
+        query(
+          `SELECT e.toId, u.nickname AS toName, e.score, e.content, e.createdAt
+           FROM evaluations e LEFT JOIN users u ON e.toId = u.id
+           WHERE e.postId = ? AND e.fromId = ? ORDER BY e.createdAt ASC`,
+          [req.params.id, viewerId]
+        ),
+        query(
+          `SELECT e.fromId, e.fromName, e.score, e.content, e.createdAt
+           FROM evaluations e
+           WHERE e.postId = ? AND e.toId = ? ORDER BY e.createdAt ASC`,
+          [req.params.id, viewerId]
+        )
+      ]);
     }
 
     const participantIds = new Set([postRow.publisherId, ...buddies.map(b => b.userId)]);
