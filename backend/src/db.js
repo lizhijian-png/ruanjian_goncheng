@@ -252,6 +252,7 @@ async function createTables() {
   }
 
   // 迁移：evaluations 加 toId（被评价者）
+  // 假设旧数据中 (postId, fromId) 无重复行；若有重复，ADD UNIQUE KEY 会报错需手动清理
   const evalToIdCol = await query(`SHOW COLUMNS FROM evaluations LIKE 'toId'`);
   if (evalToIdCol.length === 0) {
     await query(`ALTER TABLE evaluations ADD COLUMN toId VARCHAR(64) NOT NULL DEFAULT '' AFTER fromId`);
