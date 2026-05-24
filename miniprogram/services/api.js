@@ -162,6 +162,10 @@ function getEvaluationsReceived(userId) {
   return request({ url: `/api/users/${userId}/evaluations-received` });
 }
 
+function getPointLogs(userId) {
+  return request({ url: `/api/users/${userId}/point-logs` });
+}
+
 module.exports = {
   login,
   bind,
@@ -181,5 +185,6 @@ module.exports = {
   submitEvaluation,
   startPost,
   requestComplete,
-  getEvaluationsReceived
+  getEvaluationsReceived,
+  getPointLogs
 };

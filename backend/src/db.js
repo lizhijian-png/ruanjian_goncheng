@@ -279,6 +279,20 @@ async function createTables() {
   if (evalToIdIdx.length === 0) {
     await query(`ALTER TABLE evaluations ADD INDEX idx_eval_toId (toId)`);
   }
+
+  // 积分历史记录表
+  await query(`
+    CREATE TABLE IF NOT EXISTS point_logs (
+      id VARCHAR(64) PRIMARY KEY,
+      userId VARCHAR(64) NOT NULL,
+      delta INT NOT NULL,
+      balance INT NOT NULL,
+      reason VARCHAR(255) NOT NULL,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_point_logs_userId (userId),
+      CONSTRAINT fk_pl_user FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
 }
 
 

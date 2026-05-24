@@ -13,6 +13,16 @@ function createId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+async function insertPointLog(connection, userId, delta, reason) {
+  const [[user]] = await connection.execute('SELECT points FROM users WHERE id = ?', [userId]);
+  const balance = user ? user.points : 0;
+  const logId = createId('pl');
+  await connection.execute(
+    'INSERT INTO point_logs (id, userId, delta, balance, reason) VALUES (?, ?, ?, ?, ?)',
+    [logId, userId, delta, balance, reason]
+  );
+}
+
 async function buildUserResponse(user) {
   return {
     id: user.id,
@@ -80,6 +90,8 @@ async function settlePost(postId) {
       'UPDATE users SET points = points + ? WHERE id = ?',
       [post.reward || 0, post.publisherId]
     );
+    await insertPointLog(connection, post.publisherId, post.reward || 0, `完成任务《${post.title}》`);
+
     const [buddyRows] = await connection.execute(
       'SELECT userId FROM post_buddies WHERE postId = ?',
       [postId]
@@ -89,6 +101,7 @@ async function settlePost(postId) {
         'UPDATE users SET points = points + ? WHERE id = ?',
         [post.reward || 0, buddy.userId]
       );
+      await insertPointLog(connection, buddy.userId, post.reward || 0, `完成任务《${post.title}》`);
     }
   });
   if (publisherId) await recalcCompletionRate(publisherId);
@@ -841,6 +854,7 @@ app.post('/api/posts/:id/abandon', async (req, res, next) => {
         'UPDATE users SET points = GREATEST(0, points - ?) WHERE id = ?',
         [post.penalty, post.publisherId]
       );
+      await insertPointLog(connection, post.publisherId, -post.penalty, `放弃任务《${post.title}》`);
     });
 
     await recalcCompletionRate(post.publisherId);
@@ -1015,6 +1029,18 @@ app.get('/api/users/:id/profile', async (req, res, next) => {
       user: await buildUserResponse(user),
       posts
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/users/:id/point-logs', async (req, res, next) => {
+  try {
+    const rows = await query(
+      'SELECT id, delta, balance, reason, createdAt FROM point_logs WHERE userId = ? ORDER BY createdAt DESC',
+      [req.params.id]
+    );
+    res.json(rows);
   } catch (error) {
     next(error);
   }
