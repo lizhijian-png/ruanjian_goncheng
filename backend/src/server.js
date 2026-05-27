@@ -92,14 +92,17 @@ async function settlePost(postId) {
       );
     }
   });
-  if (publisherId) await recalcCompletionRate(publisherId);
-
-  const evaluated = await query(
-    'SELECT DISTINCT toId FROM evaluations WHERE postId = ?',
-    [postId]
-  );
-  for (const { toId } of evaluated) {
-    setImmediate(() => generateAiComment(toId));
+  if (publisherId) {
+    await recalcCompletionRate(publisherId);
+    const evaluated = await query(
+      'SELECT DISTINCT toId FROM evaluations WHERE postId = ?',
+      [postId]
+    );
+    for (const { toId } of evaluated) {
+      setImmediate(() => generateAiComment(toId).catch(err =>
+        console.error(`[AI] setImmediate error for ${toId}:`, err)
+      ));
+    }
   }
 }
 
