@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const { initDb, mapPost, query, withTransaction, getUserRank } = require('./db');
+const { generateAiComment } = require('./ai');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -92,6 +93,14 @@ async function settlePost(postId) {
     }
   });
   if (publisherId) await recalcCompletionRate(publisherId);
+
+  const evaluated = await query(
+    'SELECT DISTINCT toId FROM evaluations WHERE postId = ?',
+    [postId]
+  );
+  for (const { toId } of evaluated) {
+    setImmediate(() => generateAiComment(toId));
+  }
 }
 
 function calcRecommendedScore(post, publisherUser, preferenceMap) {
