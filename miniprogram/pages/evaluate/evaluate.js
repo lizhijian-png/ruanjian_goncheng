@@ -12,7 +12,8 @@ Page({
     submitting: false
   },
   async onLoad(options) {
-    const { postId, targetUserId, targetNickname } = options;
+    const { postId, targetUserId } = options;
+    const targetNickname = decodeURIComponent(options.targetNickname || '');
     const app = getApp();
     const userInfo = app.globalData.userInfo || wx.getStorageSync('userInfo');
     const currentUserId = userInfo ? userInfo.id : '';

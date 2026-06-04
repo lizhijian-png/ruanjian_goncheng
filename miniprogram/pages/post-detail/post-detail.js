@@ -38,6 +38,7 @@ Page({
     evalTargets: [],
   },
   async onLoad(options) {
+    this._firstShow = true;
     const app = getApp();
     const userInfo = app.globalData.userInfo || wx.getStorageSync('userInfo');
     const currentUserId = userInfo ? userInfo.id : '';
@@ -45,6 +46,7 @@ Page({
     await this._loadDetail(options.id);
   },
   onShow() {
+    if (this._firstShow) { this._firstShow = false; return; }
     if (this.data.post) {
       this._loadDetail(this.data.post.id);
     }
@@ -238,7 +240,7 @@ Page({
     if (evaluated) return;
     this.setData({ showPersonPicker: false });
     wx.navigateTo({
-      url: `/pages/evaluate/evaluate?postId=${this.data.post.id}&targetUserId=${userid}&targetNickname=${nickname}`
+      url: `/pages/evaluate/evaluate?postId=${this.data.post.id}&targetUserId=${userid}&targetNickname=${encodeURIComponent(nickname)}`
     });
   },
 });
