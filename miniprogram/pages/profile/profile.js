@@ -4,7 +4,7 @@ Page({
   data: {
     user: {},
     posts: [],
-    activeTab: 'active',   // 'active' | 'done' | 'abandoned'
+    activeTab: 'active',
     filteredPosts: [],
     settingsVisible: false,
     editNickname: '',
@@ -140,5 +140,28 @@ Page({
     } finally {
       this.setData({ saving: false });
     }
+  },
+
+  // 新增：管理员入口逻辑
+  handleAdminEntrance() {
+    wx.showModal({
+      title: '管理员登录',
+      content: '',
+      editable: true,
+      placeholderText: '请输入管理员密码 (admin123)',
+      success: async (res) => {
+        if (res.confirm && res.content) {
+          try {
+            await api.adminLogin(res.content);
+            wx.showToast({ title: '登录成功', icon: 'success' });
+            setTimeout(() => {
+              wx.navigateTo({ url: '/pages/admin/admin' });
+            }, 500);
+          } catch (e) {
+            wx.showToast({ title: e.message || '密码错误', icon: 'none' });
+          }
+        }
+      }
+    });
   }
 });

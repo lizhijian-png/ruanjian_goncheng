@@ -23,19 +23,11 @@ function request({ url, method = 'GET', data }) {
 }
 
 function login({ code }) {
-  return request({
-    url: '/api/auth/login',
-    method: 'POST',
-    data: { code }
-  });
+  return request({ url: '/api/auth/login', method: 'POST', data: { code } });
 }
 
 function bind({ code, nickname, avatarUrl }) {
-  return request({
-    url: '/api/auth/bind',
-    method: 'POST',
-    data: { code, nickname, avatarUrl }
-  });
+  return request({ url: '/api/auth/bind', method: 'POST', data: { code, nickname, avatarUrl } });
 }
 
 function getFeed({ category = '', startAfter = '', endBefore = '', keyword = '', userId = '', page = 1, pageSize = 10 } = {}) {
@@ -64,98 +56,51 @@ function getProfile(userId) {
 }
 
 function createPost(payload) {
-  return request({
-    url: '/api/posts',
-    method: 'POST',
-    data: payload
-  });
+  return request({ url: '/api/posts', method: 'POST', data: payload });
 }
 
 function updatePost(id, payload) {
-  return request({
-    url: `/api/posts/${id}`,
-    method: 'PUT',
-    data: payload
-  });
+  return request({ url: `/api/posts/${id}`, method: 'PUT', data: payload });
 }
 
 function deletePost(id) {
-  return request({
-    url: `/api/posts/${id}`,
-    method: 'DELETE'
-  });
+  return request({ url: `/api/posts/${id}`, method: 'DELETE' });
 }
 
 function completePost(id, userId) {
-  return request({
-    url: `/api/posts/${id}/complete`,
-    method: 'POST',
-    data: { userId }
-  });
+  return request({ url: `/api/posts/${id}/complete`, method: 'POST', data: { userId } });
 }
 
 function submitEvidence(postId, userId, submitterName, content) {
-  return request({
-    url: `/api/posts/${postId}/evidence`,
-    method: 'POST',
-    data: { userId, submitterName, content }
-  });
+  return request({ url: `/api/posts/${postId}/evidence`, method: 'POST', data: { userId, submitterName, content } });
 }
 
 function joinPost(id, userId) {
-  return request({
-    url: `/api/posts/${id}/join`,
-    method: 'POST',
-    data: { userId }
-  });
+  return request({ url: `/api/posts/${id}/join`, method: 'POST', data: { userId } });
 }
 
 function quitPost(id, userId) {
-  return request({
-    url: `/api/posts/${id}/quit`,
-    method: 'POST',
-    data: { userId }
-  });
+  return request({ url: `/api/posts/${id}/quit`, method: 'POST', data: { userId } });
 }
 
 function abandonPost(id, userId) {
-  return request({
-    url: `/api/posts/${id}/abandon`,
-    method: 'POST',
-    data: { userId }
-  });
+  return request({ url: `/api/posts/${id}/abandon`, method: 'POST', data: { userId } });
 }
 
 function submitEvaluation(postId, userId, toId, score, content) {
-  return request({
-    url: `/api/posts/${postId}/evaluate`,
-    method: 'POST',
-    data: { userId, toId, score, content }
-  });
+  return request({ url: `/api/posts/${postId}/evaluate`, method: 'POST', data: { userId, toId, score, content } });
 }
 
 function startPost(postId, userId) {
-  return request({
-    url: `/api/posts/${postId}/start`,
-    method: 'POST',
-    data: { userId }
-  });
+  return request({ url: `/api/posts/${postId}/start`, method: 'POST', data: { userId } });
 }
 
 function requestComplete(postId, userId) {
-  return request({
-    url: `/api/posts/${postId}/request-complete`,
-    method: 'POST',
-    data: { userId }
-  });
+  return request({ url: `/api/posts/${postId}/request-complete`, method: 'POST', data: { userId } });
 }
 
 function updateProfile(userId, payload) {
-  return request({
-    url: `/api/users/${userId}/profile`,
-    method: 'PUT',
-    data: payload
-  });
+  return request({ url: `/api/users/${userId}/profile`, method: 'PUT', data: payload });
 }
 
 function getEvaluationsReceived(userId) {
@@ -186,6 +131,20 @@ function deleteAnnotation(postId, annId, userId) {
   });
 }
 
+// ================== 管理员专用 API ==================
+
+function adminLogin(password) {
+  return request({ url: `/api/admin/login`, method: 'POST', data: { password } });
+}
+
+function getAdminFeed() {
+  return request({ url: `/api/admin/posts` });
+}
+
+function updatePostAuditStatus(id, auditStatus) {
+  return request({ url: `/api/admin/posts/${id}/audit-status`, method: 'PUT', data: { auditStatus } });
+}
+
 module.exports = {
   login,
   bind,
@@ -209,5 +168,8 @@ module.exports = {
   getPointLogs,
   getAnnotations,
   createAnnotation,
-  deleteAnnotation
+  deleteAnnotation,
+  adminLogin,
+  getAdminFeed,
+  updatePostAuditStatus
 };

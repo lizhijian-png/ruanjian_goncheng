@@ -75,6 +75,10 @@
       <text>暂无相关帖子</text>
     </view>
   </view>
+
+  <!-- ================= 新增：管理员入口 ================= -->
+  <view class="admin-btn" bindtap="handleAdminEntrance">管理员登录</view>
+  
 </view>
 
 <!-- 遮罩 -->

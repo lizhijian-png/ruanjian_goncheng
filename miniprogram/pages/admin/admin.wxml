@@ -1,0 +1,29 @@
+<view class="container">
+  <view class="header">
+    <text class="title">任务全量管理</text>
+    <text class="subtitle">共 {{posts.length}} 条记录</text>
+  </view>
+
+  <view class="post-list">
+    <view class="post-card" wx:for="{{posts}}" wx:key="id">
+      <view class="post-content" bindtap="goDetail" data-id="{{item.id}}">
+        <view class="post-title">{{item.title}}</view>
+        <view class="post-info">发布人: {{item.publisher}} | 状态: {{item.status}}</view>
+        <view class="post-time">创建于: {{item.createdAt}}</view>
+      </view>
+      <view class="post-actions">
+        <view class="audit-tag {{item.auditStatus === '正常' ? 'tag-normal' : 'tag-ban'}}">
+          审核: {{item.auditStatus}}
+        </view>
+        <button 
+          class="btn-toggle {{item.auditStatus === '正常' ? 'btn-warn' : 'btn-safe'}}" 
+          catchtap="toggleAuditStatus" 
+          data-id="{{item.id}}" 
+          data-current="{{item.auditStatus}}">
+          设为{{item.auditStatus === '正常' ? '违规' : '正常'}}
+        </button>
+      </view>
+    </view>
+  </view>
+  <view wx:if="{{posts.length === 0}}" class="empty-tip">暂无数据</view>
+</view>
