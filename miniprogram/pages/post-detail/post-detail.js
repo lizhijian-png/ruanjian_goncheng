@@ -36,12 +36,6 @@ Page({
     // 人员选择弹层
     showPersonPicker: false,
     evalTargets: [],
-    // 评价表单
-    showEvalForm: false,
-    evalTargetId: '',
-    evalTargetName: '',
-    evalScore: 5,
-    evalContent: '',
     // 批注
     annotations: [],
     isParticipant: false,
@@ -57,11 +51,19 @@ Page({
     canDeleteActive: false
   },
   async onLoad(options) {
+    this._firstShow = true;
     const app = getApp();
     const userInfo = app.globalData.userInfo || wx.getStorageSync('userInfo');
     const currentUserId = userInfo ? userInfo.id : '';
     this.setData({ currentUserId });
     await this._loadDetail(options.id);
+  },
+  onShow() {
+    if (this._firstShow) { this._firstShow = false; return; }
+    if (this._returnFromEvaluate && this.data.post) {
+      this._returnFromEvaluate = false;
+      this._loadDetail(this.data.post.id);
+    }
   },
   async _loadDetail(postId) {
     try {
@@ -257,41 +259,11 @@ Page({
   openEvalFormForPerson(e) {
     const { userid, nickname, evaluated } = e.currentTarget.dataset;
     if (evaluated) return;
-    this.setData({
-      showPersonPicker: false,
-      showEvalForm: true,
-      evalTargetId: userid,
-      evalTargetName: nickname,
-      evalScore: 5,
-      evalContent: ''
+    this.setData({ showPersonPicker: false });
+    this._returnFromEvaluate = true;
+    wx.navigateTo({
+      url: `/pages/evaluate/evaluate?postId=${this.data.post.id}&targetUserId=${userid}&targetNickname=${encodeURIComponent(nickname)}`
     });
-  },
-  closeEvalForm() {
-    this.setData({ showEvalForm: false, evalTargetId: '', evalTargetName: '' });
-  },
-  onEvalScoreChange(e) {
-    this.setData({ evalScore: Number(e.detail.value) });
-  },
-  onEvalContentInput(e) {
-    this.setData({ evalContent: e.detail.value });
-  },
-  async submitEvaluation() {
-    const { post, currentUserId, evalTargetId, evalScore, evalContent } = this.data;
-    if (!String(evalContent).trim()) {
-      wx.showToast({ title: '请填写评价内容', icon: 'none' });
-      return;
-    }
-    try {
-      await api.submitEvaluation(post.id, currentUserId, evalTargetId, evalScore, evalContent);
-      wx.showToast({ title: '评价已提交', icon: 'success' });
-      this.setData({ showEvalForm: false, evalTargetId: '', evalTargetName: '' });
-      await this._loadDetail(post.id);
-    } catch (error) {
-      wx.showToast({ title: error.message || '提交失败', icon: 'none' });
-    }
-  },
-  backToPersonPicker() {
-    this.setData({ showEvalForm: false, showPersonPicker: true });
   },
   onToolPick(e) {
     if (!this.data.isParticipant) {
