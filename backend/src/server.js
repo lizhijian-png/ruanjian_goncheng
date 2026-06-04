@@ -41,6 +41,15 @@ async function getUserById(userId) {
   return rows[0] || null;
 }
 
+async function isParticipant(postId, userId, post) {
+  if (post.publisherId === userId) return true;
+  const rows = await query(
+    'SELECT id FROM post_buddies WHERE postId = ? AND userId = ?',
+    [postId, userId]
+  );
+  return rows.length > 0;
+}
+
 async function syncPostStatus(postId) {
   const rows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
   const post = rows[0];
@@ -1053,6 +1062,96 @@ app.get('/api/users/:id/point-logs', async (req, res, next) => {
       [req.params.id]
     );
     res.json(rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/posts/:id/annotations', async (req, res, next) => {
+  try {
+    const annotations = await query(
+      `SELECT id, userId, nickname, type, content, style, x, y, createdAt
+       FROM annotations WHERE postId = ? ORDER BY createdAt ASC`,
+      [req.params.id]
+    );
+    res.json({ success: true, annotations });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/posts/:id/annotations', async (req, res, next) => {
+  try {
+    const postId = req.params.id;
+    const { userId, type, content, style, x, y } = req.body;
+
+    const postRows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
+    const post = postRows[0];
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
+
+    if (!userId || !(await isParticipant(postId, userId, post))) {
+      return res.status(403).json({ message: '只有任务参与者可以批注' });
+    }
+    if (type !== 'text' && type !== 'stamp') {
+      return res.status(400).json({ message: 'type 不合法' });
+    }
+    if (!String(content || '').trim()) {
+      return res.status(400).json({ message: '批注内容不能为空' });
+    }
+    const nx = Number(x), ny = Number(y);
+    if (!(nx >= 0 && nx <= 100 && ny >= 0 && ny <= 100)) {
+      return res.status(400).json({ message: '坐标超出范围' });
+    }
+
+    const countRows = await query(
+      'SELECT COUNT(*) AS cnt FROM annotations WHERE postId = ? AND userId = ?',
+      [postId, userId]
+    );
+    if (countRows[0].cnt >= 20) {
+      return res.status(400).json({ message: '你在该帖的批注已达上限(20 条)' });
+    }
+
+    const user = await getUserById(userId);
+    if (!user) return res.status(400).json({ message: '用户不存在' });
+
+    const id = createId('ann');
+    const styleStr = typeof style === 'string' ? style : JSON.stringify(style || {});
+    await query(
+      `INSERT INTO annotations (id, postId, userId, nickname, type, content, style, x, y)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, postId, userId, user.nickname, type, String(content), styleStr, nx, ny]
+    );
+
+    const rows = await query(
+      `SELECT id, userId, nickname, type, content, style, x, y, createdAt
+       FROM annotations WHERE id = ?`,
+      [id]
+    );
+    res.json({ success: true, annotation: rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/posts/:id/annotations/:annId', async (req, res, next) => {
+  try {
+    const { id: postId, annId } = req.params;
+    const { userId } = req.body;
+
+    const annRows = await query('SELECT * FROM annotations WHERE id = ? AND postId = ?', [annId, postId]);
+    const ann = annRows[0];
+    if (!ann) return res.status(404).json({ message: '批注不存在' });
+
+    const postRows = await query('SELECT publisherId FROM posts WHERE id = ?', [postId]);
+    const post = postRows[0];
+    const isOwner = ann.userId === userId;
+    const isPublisher = post && post.publisherId === userId;
+    if (!isOwner && !isPublisher) {
+      return res.status(403).json({ message: '无权删除该批注' });
+    }
+
+    await query('DELETE FROM annotations WHERE id = ?', [annId]);
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }
