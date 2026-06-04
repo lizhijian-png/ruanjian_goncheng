@@ -1,5 +1,6 @@
 <view class="container" wx:if="{{post}}">
-  <view class="post-card detail-card">
+  <view wx:if="{{placingMode}}" class="placing-hint">点击帖子上要贴批注的位置</view>
+  <view class="post-card detail-card" bindtap="onCardTap">
     <view class="tag">任务详情</view>
     <view class="publisher-bar">
       <image
@@ -14,6 +15,10 @@
     </view>
     <view class="detail-title">{{post.title}}</view>
     <view class="detail-content">{{post.content}}</view>
+    <annotation-layer
+      annotations="{{annotations}}"
+      bind:tapannotation="onTapAnnotation"
+    />
 
     <view class="detail-grid">
       <view class="detail-chip">奖励 +{{post.reward}}</view>
@@ -163,5 +168,43 @@
         <view class="muted">{{item.content}}</view>
       </view>
     </block>
+  </view>
+
+  <annotation-toolbox
+    wx:if="{{isParticipant}}"
+    bind:pick="onToolPick"
+  />
+
+  <view wx:if="{{showTextInput}}" class="anno-input-overlay">
+    <view class="anno-input-panel">
+      <view class="section-title">写批注</view>
+      <textarea
+        class="evidence-textarea"
+        placeholder="输入批注文字..."
+        placeholder-class="placeholder"
+        bindinput="onTextInputChange"
+        value="{{textInputValue}}"
+      />
+      <view class="evidence-form-btns">
+        <button class="ghost-btn evidence-btn" bindtap="cancelTextAnnotation">取消</button>
+        <button class="primary-btn evidence-btn" bindtap="confirmTextAnnotation">贴上</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showAnnoDetail}}" class="anno-input-overlay" bindtap="closeAnnoDetail">
+    <view class="anno-detail-panel" catchtap="">
+      <view class="anno-detail-author">{{activeAnno.nickname}}</view>
+      <view class="anno-detail-content">{{activeAnno.content}}</view>
+      <view class="muted">{{activeAnno.createdAt}}</view>
+      <view class="evidence-form-btns">
+        <button class="ghost-btn evidence-btn" bindtap="closeAnnoDetail">关闭</button>
+        <button
+          wx:if="{{canDeleteActive}}"
+          class="danger-btn evidence-btn"
+          bindtap="deleteActiveAnnotation"
+        >删除</button>
+      </view>
+    </view>
   </view>
 </view>

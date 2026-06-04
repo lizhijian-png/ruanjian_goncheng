@@ -293,6 +293,27 @@ async function createTables() {
       CONSTRAINT fk_pl_user FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+
+  // 帖子批注表(文字批注 + 表情印章)
+  await query(`
+    CREATE TABLE IF NOT EXISTS annotations (
+      id          VARCHAR(64) PRIMARY KEY,
+      postId      VARCHAR(64) NOT NULL,
+      userId      VARCHAR(64) NOT NULL,
+      nickname    VARCHAR(100) NOT NULL,
+      type        VARCHAR(20) NOT NULL,
+      content     TEXT NOT NULL,
+      style       TEXT NOT NULL,
+      x           DECIMAL(5,2) NOT NULL,
+      y           DECIMAL(5,2) NOT NULL,
+      createdAt   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_annotations_post (postId),
+      CONSTRAINT fk_annotations_post FOREIGN KEY (postId)
+        REFERENCES posts(id) ON DELETE CASCADE,
+      CONSTRAINT fk_annotations_user FOREIGN KEY (userId)
+        REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
 }
 
 

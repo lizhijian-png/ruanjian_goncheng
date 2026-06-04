@@ -1,0 +1,16 @@
+<view class="toolbox-root">
+  <view wx:if="{{expanded}}" class="toolbox-panel">
+    <view class="panel-title">批注工具箱</view>
+    <button class="text-tool-btn" bindtap="pickText">✏️ 写批注</button>
+    <view class="emoji-row">
+      <view
+        wx:for="{{emojis}}"
+        wx:key="*this"
+        class="emoji-item"
+        data-emoji="{{item}}"
+        bindtap="pickStamp"
+      >{{item}}</view>
+    </view>
+  </view>
+  <view class="toolbox-fab" bindtap="toggle">{{expanded ? '✕' : '🧰'}}</view>
+</view>
