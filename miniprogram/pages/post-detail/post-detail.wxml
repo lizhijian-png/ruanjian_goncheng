@@ -116,34 +116,6 @@
       </view>
     </view>
 
-    <!-- 评价表单（对某人） -->
-    <view wx:if="{{showEvalForm}}" class="eval-form">
-      <view class="section-title">评价 {{evalTargetName}}</view>
-      <view class="eval-score-row">
-        <view class="label">评分：{{evalScore}} 分</view>
-        <slider
-          class="eval-slider"
-          min="1" max="5" step="1"
-          value="{{evalScore}}"
-          show-value="{{false}}"
-          activeColor="#f97316"
-          bindchange="onEvalScoreChange"
-        />
-      </view>
-      <view class="label">评价内容</view>
-      <textarea
-        class="evidence-textarea"
-        placeholder="描述对方的完成情况和配合度..."
-        placeholder-class="placeholder"
-        bindinput="onEvalContentInput"
-        value="{{evalContent}}"
-      />
-      <view class="evidence-form-btns">
-        <button class="ghost-btn evidence-btn" bindtap="backToPersonPicker">返回</button>
-        <button class="primary-btn evidence-btn" bindtap="submitEvaluation">提交</button>
-      </view>
-    </view>
-
     <!-- 我对他人的评价 -->
     <view wx:if="{{isPublisher || isBuddy}}" class="section-title detail-section">我对他人的评价</view>
     <view wx:if="{{(isPublisher || isBuddy) && evaluationsSent.length === 0}}" class="muted empty-hint">暂未评价任何人</view>
