@@ -6,7 +6,8 @@
     "pages/ranking/ranking",
     "pages/profile/profile",
     "pages/post-detail/post-detail",
-    "pages/admin/admin"
+    "pages/admin/admin",
+    "pages/evaluate/evaluate"
   ],
   "tabBar": {
     "color": "#8b6f88",
