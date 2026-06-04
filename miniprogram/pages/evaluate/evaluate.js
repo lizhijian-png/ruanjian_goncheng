@@ -8,10 +8,14 @@ Page({
     currentUserId: '',
     targetEvidence: '',
     evalScore: 5,
-    evalContent: ''
+    evalContent: '',
+    submitting: false
   },
   async onLoad(options) {
-    const { postId, targetUserId, targetNickname, currentUserId } = options;
+    const { postId, targetUserId, targetNickname } = options;
+    const app = getApp();
+    const userInfo = app.globalData.userInfo || wx.getStorageSync('userInfo');
+    const currentUserId = userInfo ? userInfo.id : '';
     this.setData({ postId, targetUserId, targetNickname, currentUserId });
     try {
       const detail = await api.getPostDetail(postId, currentUserId);
@@ -31,17 +35,21 @@ Page({
     wx.navigateBack();
   },
   async submit() {
+    if (this.data.submitting) return;
     const { postId, currentUserId, targetUserId, evalScore, evalContent } = this.data;
     if (!String(evalContent).trim()) {
       wx.showToast({ title: '请填写评价内容', icon: 'none' });
       return;
     }
+    this.setData({ submitting: true });
     try {
       await api.submitEvaluation(postId, currentUserId, targetUserId, evalScore, evalContent);
       wx.showToast({ title: '评价已提交', icon: 'success' });
       wx.navigateBack();
     } catch (err) {
       wx.showToast({ title: err.message || '提交失败', icon: 'none' });
+    } finally {
+      this.setData({ submitting: false });
     }
   }
 });
