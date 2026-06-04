@@ -66,12 +66,11 @@ async function syncPostStatus(postId) {
 async function settlePost(postId) {
   let publisherId = null;
   await withTransaction(async (connection) => {
-    // 原子性状态检查：只有第一个到达的请求能将 待评价→已完成
     const [result] = await connection.execute(
       "UPDATE posts SET status = '已完成', progress = 100 WHERE id = ? AND status = '待评价'",
       [postId]
     );
-    if (result.affectedRows === 0) return; // 已被其他请求结算，跳过
+    if (result.affectedRows === 0) return;
 
     const [postRows] = await connection.execute('SELECT * FROM posts WHERE id = ?', [postId]);
     const post = postRows[0];
@@ -130,7 +129,6 @@ app.get('/api/health', (_req, res) => {
   res.json({ success: true, message: 'backend is running' });
 });
 
-// 解析微信 code → openid，开发环境自动降级
 async function resolveOpenid(code, devFallbackKey) {
   let wxRes;
   try {
@@ -148,14 +146,12 @@ async function resolveOpenid(code, devFallbackKey) {
   }
 
   if (wxRes.data.errcode) {
-    // 开发环境 / 模拟器降级：用传入的 key 构造固定 openid
     if (!devFallbackKey) return null;
     return `dev_${devFallbackKey}`;
   }
   return wxRes.data.openid;
 }
 
-// 登录：openid 已存在返回用户，新用户返回 isNewUser:true
 app.post('/api/auth/login', async (req, res, next) => {
   try {
     const { code } = req.body;
@@ -163,7 +159,6 @@ app.post('/api/auth/login', async (req, res, next) => {
       return res.status(400).json({ message: '缺少微信登录 code' });
     }
 
-    // 开发降级时 openid 为 null（无法确定身份），直接告知前端是新用户
     const openid = await resolveOpenid(code, null);
     if (!openid) {
       return res.json({ isNewUser: true, devMode: true });
@@ -182,7 +177,6 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-// 绑定：首次登录时创建用户（昵称 + 头像来自微信授权）
 app.post('/api/auth/bind', async (req, res, next) => {
   try {
     const { code, nickname, avatarUrl } = req.body;
@@ -194,13 +188,11 @@ app.post('/api/auth/bind', async (req, res, next) => {
       return res.status(400).json({ message: '昵称不能为空' });
     }
 
-    // 开发降级：用昵称作为 key
     const openid = await resolveOpenid(code, displayName);
     if (!openid) {
       return res.status(400).json({ message: '无法获取微信身份，请检查 AppID/Secret 配置' });
     }
 
-    // 若已存在（重复绑定），直接返回已有用户
     const existing = await query('SELECT * FROM users WHERE openid = ?', [openid]);
     if (existing[0]) {
       return res.json({ token: `token-${existing[0].id}`, user: await buildUserResponse(existing[0]) });
@@ -228,7 +220,8 @@ app.get('/api/posts', async (req, res, next) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const pageSize = Math.min(50, Math.max(1, parseInt(req.query.pageSize) || 10));
 
-    const conditions = [];
+    // 默认只获取正常的帖子，隐藏被管理员判定为违规的
+    const conditions = ["p.auditStatus = '正常'"];
     const params = [];
 
     if (category) {
@@ -251,7 +244,6 @@ app.get('/api/posts', async (req, res, next) => {
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const whereClause = where ? ` ${where}` : '';
 
-    // 取全量候选帖子（含发布者信息），内存排序后再分页
     const rows = await query(
       `SELECT p.*, u.avatarUrl AS publisherAvatarUrl,
               u.completionRate AS publisherCompletionRate,
@@ -261,7 +253,6 @@ app.get('/api/posts', async (req, res, next) => {
       params
     );
 
-    // 构建用户偏好向量
     let preferenceMap = null;
     if (userId) {
       const prefRows = await query(
@@ -279,7 +270,6 @@ app.get('/api/posts', async (req, res, next) => {
       );
     }
 
-    // 内存计算推荐分并排序
     const scored = rows.map(row => {
       const publisherUser = row.publisherCompletionRate != null
         ? { completionRate: row.publisherCompletionRate, points: row.publisherPoints }
@@ -415,6 +405,7 @@ app.post('/api/posts', async (req, res, next) => {
       evaluationOpen: evaluationOpen ? 1 : 0,
       evidenceText: String(evidenceText || ''),
       status: '招募中',
+      auditStatus: '正常',
       buddyName: '',
       progress: 0,
       recommendedScore: 80,
@@ -427,9 +418,9 @@ app.post('/api/posts', async (req, res, next) => {
     await query(
       `INSERT INTO posts (
         id, publisherId, publisherName, title, content, reward, penalty, category,
-        partnerChat, evaluationOpen, evidenceText, status, buddyName, progress, recommendedScore,
+        partnerChat, evaluationOpen, evidenceText, status, auditStatus, buddyName, progress, recommendedScore,
         maxBuddies, currentBuddies, startTime, endTime
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         post.id,
         post.publisherId,
@@ -443,6 +434,7 @@ app.post('/api/posts', async (req, res, next) => {
         post.evaluationOpen,
         post.evidenceText,
         post.status,
+        post.auditStatus,
         post.buddyName,
         post.progress,
         post.recommendedScore,
@@ -537,31 +529,16 @@ app.post('/api/posts/:id/join', async (req, res, next) => {
 
     const postRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     const post = postRows[0];
-    if (!post) {
-      return res.status(404).json({ message: '帖子不存在' });
-    }
-    if (post.status !== '招募中') {
-      return res.status(400).json({ message: '该帖子当前不在招募中' });
-    }
-    if (post.publisherId === userId) {
-      return res.status(400).json({ message: '发布者不能加入自己的任务' });
-    }
-    if (post.currentBuddies >= post.maxBuddies) {
-      return res.status(400).json({ message: '搭子人数已满，无法加入' });
-    }
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
+    if (post.status !== '招募中') return res.status(400).json({ message: '该帖子当前不在招募中' });
+    if (post.publisherId === userId) return res.status(400).json({ message: '发布者不能加入自己的任务' });
+    if (post.currentBuddies >= post.maxBuddies) return res.status(400).json({ message: '搭子人数已满，无法加入' });
 
     const user = await getUserById(userId);
-    if (!user) {
-      return res.status(400).json({ message: '用户不存在' });
-    }
+    if (!user) return res.status(400).json({ message: '用户不存在' });
 
-    const existing = await query(
-      'SELECT id FROM post_buddies WHERE postId = ? AND userId = ?',
-      [req.params.id, userId]
-    );
-    if (existing.length > 0) {
-      return res.status(400).json({ message: '你已经加入了该任务' });
-    }
+    const existing = await query('SELECT id FROM post_buddies WHERE postId = ? AND userId = ?', [req.params.id, userId]);
+    if (existing.length > 0) return res.status(400).json({ message: '你已经加入了该任务' });
 
     await withTransaction(async (connection) => {
       const pbId = createId('pb');
@@ -569,12 +546,10 @@ app.post('/api/posts/:id/join', async (req, res, next) => {
         'INSERT INTO post_buddies (id, postId, userId, nickname) VALUES (?, ?, ?, ?)',
         [pbId, req.params.id, userId, user.nickname]
       );
-
       const newCount = post.currentBuddies + 1;
       const now = new Date();
       const startReached = !post.startTime || new Date(post.startTime) <= now;
       const newStatus = (newCount >= post.maxBuddies && startReached) ? '进行中' : '招募中';
-      // buddyName 记录最后一位（保持向后兼容）
       await connection.execute(
         'UPDATE posts SET currentBuddies = ?, buddyName = ?, status = ? WHERE id = ?',
         [newCount, user.nickname, newStatus, req.params.id]
@@ -582,10 +557,7 @@ app.post('/api/posts/:id/join', async (req, res, next) => {
     });
 
     const fresh = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
-    const buddies = await query(
-      'SELECT userId, nickname, joinedAt, evaluated FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC',
-      [req.params.id]
-    );
+    const buddies = await query('SELECT userId, nickname, joinedAt, evaluated FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC', [req.params.id]);
     res.json({ post: mapPost(fresh[0]), buddies });
   } catch (error) {
     next(error);
@@ -595,40 +567,21 @@ app.post('/api/posts/:id/join', async (req, res, next) => {
 app.post('/api/posts/:id/quit', async (req, res, next) => {
   try {
     const { userId } = req.body;
-    if (!userId) {
-      return res.status(400).json({ message: '缺少 userId' });
-    }
+    if (!userId) return res.status(400).json({ message: '缺少 userId' });
 
     const postRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     const post = postRows[0];
-    if (!post) {
-      return res.status(404).json({ message: '帖子不存在' });
-    }
-    if (post.status !== '招募中' && post.status !== '进行中') {
-      return res.status(400).json({ message: '当前状态无法退出' });
-    }
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
+    if (post.status !== '招募中' && post.status !== '进行中') return res.status(400).json({ message: '当前状态无法退出' });
 
-    const existing = await query(
-      'SELECT id FROM post_buddies WHERE postId = ? AND userId = ?',
-      [req.params.id, userId]
-    );
-    if (existing.length === 0) {
-      return res.status(400).json({ message: '你不是该任务的搭子' });
-    }
+    const existing = await query('SELECT id FROM post_buddies WHERE postId = ? AND userId = ?', [req.params.id, userId]);
+    if (existing.length === 0) return res.status(400).json({ message: '你不是该任务的搭子' });
 
     await syncPostStatus(req.params.id);
     await withTransaction(async (connection) => {
-      await connection.execute(
-        'DELETE FROM post_buddies WHERE postId = ? AND userId = ?',
-        [req.params.id, userId]
-      );
-
+      await connection.execute('DELETE FROM post_buddies WHERE postId = ? AND userId = ?', [req.params.id, userId]);
       const newCount = Math.max(0, post.currentBuddies - 1);
-      // 退出后回到招募中；buddyName 退回到剩余最后一位，若无则清空
-      const remaining = await connection.execute(
-        'SELECT nickname FROM post_buddies WHERE postId = ? ORDER BY joinedAt DESC LIMIT 1',
-        [req.params.id]
-      );
+      const remaining = await connection.execute('SELECT nickname FROM post_buddies WHERE postId = ? ORDER BY joinedAt DESC LIMIT 1', [req.params.id]);
       const lastNickname = remaining[0][0] ? remaining[0][0].nickname : '';
       const [statusRows] = await connection.execute('SELECT status FROM posts WHERE id = ?', [req.params.id]);
       const currentStatus = statusRows[0]?.status;
@@ -640,10 +593,7 @@ app.post('/api/posts/:id/quit', async (req, res, next) => {
     });
 
     const fresh = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
-    const buddies = await query(
-      'SELECT userId, nickname, joinedAt, evaluated FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC',
-      [req.params.id]
-    );
+    const buddies = await query('SELECT userId, nickname, joinedAt, evaluated FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC', [req.params.id]);
     res.json({ post: mapPost(fresh[0]), buddies });
   } catch (error) {
     next(error);
@@ -654,50 +604,30 @@ app.post('/api/posts/:id/evidence', async (req, res, next) => {
   try {
     await syncPostStatus(req.params.id);
     const { userId, submitterName, content } = req.body;
-    if (!userId || !String(content || '').trim()) {
-      return res.status(400).json({ message: '缺少 userId 或证据内容' });
-    }
+    if (!userId || !String(content || '').trim()) return res.status(400).json({ message: '缺少 userId 或证据内容' });
     const safeSubmitterName = String(submitterName || userId).trim();
 
     const postRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     const post = postRows[0];
-    if (!post) {
-      return res.status(404).json({ message: '帖子不存在' });
-    }
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
 
-    // 只有参与者（发布者或搭子）才能提交
-    const buddyRows = await query(
-      'SELECT id FROM post_buddies WHERE postId = ? AND userId = ?',
-      [req.params.id, userId]
-    );
+    const buddyRows = await query('SELECT id FROM post_buddies WHERE postId = ? AND userId = ?', [req.params.id, userId]);
     const isPublisher = post.publisherId === userId;
     const isBuddy = buddyRows.length > 0;
-    if (!isPublisher && !isBuddy) {
-      return res.status(403).json({ message: '只有参与者才能提交证据' });
-    }
+    if (!isPublisher && !isBuddy) return res.status(403).json({ message: '只有参与者才能提交证据' });
 
-    // 允许提交的条件：状态为"已完成"，或已过 endTime
     const now = new Date();
     const ended = post.endTime && new Date(post.endTime) <= now;
     if (post.status !== '已完成' && !ended) {
-      const endStr = post.endTime
-        ? new Date(post.endTime).toLocaleString('zh-CN')
-        : '未设置结束时间';
-      return res.status(400).json({
-        message: `任务尚未结束，证据须在任务完成后或到达结束时间（${endStr}）后提交`
-      });
+      const endStr = post.endTime ? new Date(post.endTime).toLocaleString('zh-CN') : '未设置结束时间';
+      return res.status(400).json({ message: `任务尚未结束，证据须在任务完成后或到达结束时间（${endStr}）后提交` });
     }
 
     const id = createId('e');
     const trimmedValue = String(content).trim();
     const result = await query(
-      `INSERT INTO evidences (id, postId, submitterId, submitterName, type, value)
-       VALUES (?, ?, ?, ?, '文字', ?)
-       ON DUPLICATE KEY UPDATE
-         id = VALUES(id),
-         submitterName = VALUES(submitterName),
-         value = VALUES(value),
-         createdAt = NOW()`,
+      `INSERT INTO evidences (id, postId, submitterId, submitterName, type, value) VALUES (?, ?, ?, ?, '文字', ?)
+       ON DUPLICATE KEY UPDATE id = VALUES(id), submitterName = VALUES(submitterName), value = VALUES(value), createdAt = NOW()`,
       [id, req.params.id, userId, safeSubmitterName, trimmedValue]
     );
 
@@ -716,19 +646,11 @@ app.post('/api/posts/:id/complete', async (req, res, next) => {
     const rows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     const current = rows[0];
 
-    if (!current) {
-      return res.status(404).json({ message: '帖子不存在' });
-    }
-    if (current.status !== '进行中') {
-      return res.status(400).json({ message: '只有进行中的任务才能标记完成' });
-    }
-    if (userId && current.publisherId !== userId) {
-      return res.status(403).json({ message: '只有发布者可以标记完成' });
-    }
+    if (!current) return res.status(404).json({ message: '帖子不存在' });
+    if (current.status !== '进行中') return res.status(400).json({ message: '只有进行中的任务才能标记完成' });
+    if (userId && current.publisherId !== userId) return res.status(403).json({ message: '只有发布者可以标记完成' });
 
-    // 进行中 → 待评价（积分在双方互评完成后结算）
     await query('UPDATE posts SET status = ? WHERE id = ?', ['待评价', req.params.id]);
-
     const freshRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     res.json(mapPost(freshRows[0]));
   } catch (error) {
@@ -740,40 +662,23 @@ app.post('/api/posts/:id/evaluate', async (req, res, next) => {
   try {
     await syncPostStatus(req.params.id);
     const { userId, toId, score, content } = req.body;
-    if (!userId || !toId || !score || !String(content || '').trim()) {
-      return res.status(400).json({ message: '缺少 userId、toId、score 或评价内容' });
-    }
+    if (!userId || !toId || !score || !String(content || '').trim()) return res.status(400).json({ message: '缺少参数' });
     const s = Number(score);
-    if (!Number.isInteger(s) || s < 1 || s > 5) {
-      return res.status(400).json({ message: '评分须为 1-5 的整数' });
-    }
-    if (userId === toId) {
-      return res.status(400).json({ message: '不能评价自己' });
-    }
+    if (!Number.isInteger(s) || s < 1 || s > 5) return res.status(400).json({ message: '评分须为 1-5 的整数' });
+    if (userId === toId) return res.status(400).json({ message: '不能评价自己' });
 
     const postRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     const post = postRows[0];
     if (!post) return res.status(404).json({ message: '帖子不存在' });
-    if (post.status !== '待评价') {
-      return res.status(400).json({ message: '只有待评价状态的任务才能提交互评' });
-    }
+    if (post.status !== '待评价') return res.status(400).json({ message: '只有待评价状态的任务才能提交互评' });
 
     const allBuddies = await query('SELECT userId FROM post_buddies WHERE postId = ?', [req.params.id]);
     const participantIds = new Set([post.publisherId, ...allBuddies.map(b => b.userId)]);
-    if (!participantIds.has(userId)) {
-      return res.status(403).json({ message: '只有参与者才能提交互评' });
-    }
-    if (!participantIds.has(toId)) {
-      return res.status(400).json({ message: '被评价者不是该任务参与者' });
-    }
+    if (!participantIds.has(userId)) return res.status(403).json({ message: '只有参与者才能提交互评' });
+    if (!participantIds.has(toId)) return res.status(400).json({ message: '被评价者不是该任务参与者' });
 
-    const existing = await query(
-      'SELECT id FROM evaluations WHERE postId = ? AND fromId = ? AND toId = ?',
-      [req.params.id, userId, toId]
-    );
-    if (existing.length > 0) {
-      return res.status(400).json({ message: '你已经评价过该参与者了' });
-    }
+    const existing = await query('SELECT id FROM evaluations WHERE postId = ? AND fromId = ? AND toId = ?', [req.params.id, userId, toId]);
+    if (existing.length > 0) return res.status(400).json({ message: '你已经评价过该参与者了' });
 
     const user = await getUserById(userId);
     const evalId = createId('ev');
@@ -783,7 +688,6 @@ app.post('/api/posts/:id/evaluate', async (req, res, next) => {
     );
 
     await updateUserAvgScore(toId);
-
     const finalPost = (await query('SELECT * FROM posts WHERE id = ?', [req.params.id]))[0];
     res.status(201).json({ post: mapPost(finalPost) });
   } catch (error) {
@@ -816,10 +720,7 @@ async function recalcCompletionRate(userId) {
 }
 
 async function updateUserAvgScore(userId) {
-  const rows = await query(
-    'SELECT AVG(score) AS avg FROM evaluations WHERE toId = ?',
-    [userId]
-  );
+  const rows = await query('SELECT AVG(score) AS avg FROM evaluations WHERE toId = ?', [userId]);
   const avg = rows[0] && rows[0].avg != null ? Number(rows[0].avg).toFixed(1) : null;
   await query('UPDATE users SET avgScore = ? WHERE id = ?', [avg, userId]);
 }
@@ -828,35 +729,20 @@ app.post('/api/posts/:id/abandon', async (req, res, next) => {
   try {
     await syncPostStatus(req.params.id);
     const { userId } = req.body;
-    if (!userId) {
-      return res.status(400).json({ message: '缺少 userId' });
-    }
+    if (!userId) return res.status(400).json({ message: '缺少 userId' });
 
     const postRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     const post = postRows[0];
-    if (!post) {
-      return res.status(404).json({ message: '帖子不存在' });
-    }
-    if (post.publisherId !== userId) {
-      return res.status(403).json({ message: '只有发布者可以放弃任务' });
-    }
-    if (post.status !== '招募中' && post.status !== '进行中') {
-      return res.status(400).json({ message: '当前状态无法放弃' });
-    }
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
+    if (post.publisherId !== userId) return res.status(403).json({ message: '只有发布者可以放弃任务' });
+    if (post.status !== '招募中' && post.status !== '进行中') return res.status(400).json({ message: '当前状态无法放弃' });
 
     await withTransaction(async (connection) => {
-      await connection.execute(
-        'UPDATE posts SET status = ? WHERE id = ?',
-        ['已放弃', req.params.id]
-      );
-      await connection.execute(
-        'UPDATE users SET points = GREATEST(0, points - ?) WHERE id = ?',
-        [post.penalty, post.publisherId]
-      );
+      await connection.execute('UPDATE posts SET status = ? WHERE id = ?', ['已放弃', req.params.id]);
+      await connection.execute('UPDATE users SET points = GREATEST(0, points - ?) WHERE id = ?', [post.penalty, post.publisherId]);
     });
 
     await recalcCompletionRate(post.publisherId);
-
     const freshRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     res.json(mapPost(freshRows[0]));
   } catch (error) {
@@ -868,27 +754,16 @@ app.post('/api/posts/:id/start', async (req, res, next) => {
   try {
     await syncPostStatus(req.params.id);
     const { userId } = req.body;
-    if (!userId) {
-      return res.status(400).json({ message: '缺少 userId' });
-    }
+    if (!userId) return res.status(400).json({ message: '缺少 userId' });
 
     const rows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     const post = rows[0];
-    if (!post) {
-      return res.status(404).json({ message: '帖子不存在' });
-    }
-    if (post.publisherId !== userId) {
-      return res.status(403).json({ message: '只有发布者可以手动开始任务' });
-    }
-    if (post.status !== '招募中') {
-      return res.status(400).json({ message: '只有招募中的任务才能手动开始' });
-    }
-    if (post.currentBuddies < 1) {
-      return res.status(400).json({ message: '至少需要一名搭子才能开始任务' });
-    }
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
+    if (post.publisherId !== userId) return res.status(403).json({ message: '只有发布者可以手动开始任务' });
+    if (post.status !== '招募中') return res.status(400).json({ message: '只有招募中的任务才能手动开始' });
+    if (post.currentBuddies < 1) return res.status(400).json({ message: '至少需要一名搭子才能开始任务' });
 
     await query('UPDATE posts SET status = ? WHERE id = ?', ['进行中', req.params.id]);
-
     const freshRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     res.json(mapPost(freshRows[0]));
   } catch (error) {
@@ -900,43 +775,22 @@ app.post('/api/posts/:id/request-complete', async (req, res, next) => {
   try {
     await syncPostStatus(req.params.id);
     const { userId } = req.body;
-    if (!userId) {
-      return res.status(400).json({ message: '缺少 userId' });
-    }
+    if (!userId) return res.status(400).json({ message: '缺少 userId' });
 
     const rows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     const post = rows[0];
-    if (!post) {
-      return res.status(404).json({ message: '帖子不存在' });
-    }
-    if (post.status !== '进行中') {
-      return res.status(400).json({ message: '只有进行中的任务才能申请完成' });
-    }
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
+    if (post.status !== '进行中') return res.status(400).json({ message: '只有进行中的任务才能申请完成' });
 
-    const buddyRows = await query(
-      'SELECT id FROM post_buddies WHERE postId = ? AND userId = ?',
-      [req.params.id, userId]
-    );
-    if (buddyRows.length === 0) {
-      return res.status(403).json({ message: '只有搭子才能申请完成' });
-    }
+    const buddyRows = await query('SELECT id FROM post_buddies WHERE postId = ? AND userId = ?', [req.params.id, userId]);
+    if (buddyRows.length === 0) return res.status(403).json({ message: '只有搭子才能申请完成' });
 
     let requests;
-    try {
-      requests = JSON.parse(post.completionRequests || '[]');
-    } catch {
-      requests = [];
-    }
-
-    if (requests.includes(userId)) {
-      return res.status(400).json({ message: '你已申请过完成' });
-    }
+    try { requests = JSON.parse(post.completionRequests || '[]'); } catch { requests = []; }
+    if (requests.includes(userId)) return res.status(400).json({ message: '你已申请过完成' });
 
     requests.push(userId);
-    await query(
-      'UPDATE posts SET completionRequests = ? WHERE id = ?',
-      [JSON.stringify(requests), req.params.id]
-    );
+    await query('UPDATE posts SET completionRequests = ? WHERE id = ?', [JSON.stringify(requests), req.params.id]);
 
     const freshRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     res.json(mapPost(freshRows[0]));
@@ -963,26 +817,14 @@ app.get('/api/ranking', async (_req, res, next) => {
 app.put('/api/users/:id/profile', async (req, res, next) => {
   try {
     const user = await getUserById(req.params.id);
-    if (!user) {
-      return res.status(404).json({ message: '用户不存在' });
-    }
+    if (!user) return res.status(404).json({ message: '用户不存在' });
 
     const nickname = String(req.body.nickname || '').trim();
     const avatarUrl = String(req.body.avatarUrl || '').trim();
+    if (!nickname) return res.status(400).json({ message: '昵称不能为空' });
 
-    if (!nickname) {
-      return res.status(400).json({ message: '昵称不能为空' });
-    }
-
-    await query(
-      'UPDATE users SET nickname = ?, avatarUrl = ? WHERE id = ?',
-      [nickname, avatarUrl || user.avatarUrl, req.params.id]
-    );
-
-    await query(
-      'UPDATE posts SET publisherName = ? WHERE publisherId = ?',
-      [nickname, req.params.id]
-    );
+    await query('UPDATE users SET nickname = ?, avatarUrl = ? WHERE id = ?', [nickname, avatarUrl || user.avatarUrl, req.params.id]);
+    await query('UPDATE posts SET publisherName = ? WHERE publisherId = ?', [nickname, req.params.id]);
 
     const updated = await getUserById(req.params.id);
     return res.json({ user: await buildUserResponse(updated) });
@@ -994,39 +836,67 @@ app.put('/api/users/:id/profile', async (req, res, next) => {
 app.get('/api/users/:id/profile', async (req, res, next) => {
   try {
     const user = await getUserById(req.params.id);
-    if (!user) {
-      return res.status(404).json({ message: '用户不存在' });
-    }
+    if (!user) return res.status(404).json({ message: '用户不存在' });
 
     const getPublished = () => query(
       `SELECT p.*, u.avatarUrl AS publisherAvatarUrl
        FROM posts p LEFT JOIN users u ON p.publisherId = u.id
-       WHERE p.publisherId = ? ORDER BY p.createdAt DESC`,
-      [req.params.id]
+       WHERE p.publisherId = ? ORDER BY p.createdAt DESC`, [req.params.id]
     );
     const getJoined = () => query(
       `SELECT p.*, u.avatarUrl AS publisherAvatarUrl
-       FROM posts p
-       JOIN post_buddies pb ON p.id = pb.postId
-       LEFT JOIN users u ON p.publisherId = u.id
-       WHERE pb.userId = ? ORDER BY p.createdAt DESC`,
-      [req.params.id]
+       FROM posts p JOIN post_buddies pb ON p.id = pb.postId LEFT JOIN users u ON p.publisherId = u.id
+       WHERE pb.userId = ? ORDER BY p.createdAt DESC`, [req.params.id]
     );
 
     const allRows = [...(await getPublished()), ...(await getJoined())];
-    for (const row of allRows) {
-      await syncPostStatus(row.id);
-    }
+    for (const row of allRows) await syncPostStatus(row.id);
 
     const posts = [
       ...(await getPublished()).map(row => ({ ...mapPost(row), role: 'publisher' })),
       ...(await getJoined()).map(row => ({ ...mapPost(row), role: 'buddy' }))
     ];
 
-    return res.json({
-      user: await buildUserResponse(user),
-      posts
-    });
+    return res.json({ user: await buildUserResponse(user), posts });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ======================= 新增管理员接口 ======================= //
+
+// 管理员登录（示例使用简单的密码验证，可替换成生产环节的秘钥验证）
+app.post('/api/admin/login', (req, res) => {
+  if (req.body.password === (process.env.ADMIN_PASSWORD || 'admin123')) {
+    res.json({ success: true, token: 'admin_mock_token' });
+  } else {
+    res.status(401).json({ message: '管理员密码错误' });
+  }
+});
+
+// 管理员获取全量任务列表（包含被隐藏/违规的）
+app.get('/api/admin/posts', async (req, res, next) => {
+  try {
+    const rows = await query(
+      `SELECT p.*, u.avatarUrl AS publisherAvatarUrl
+       FROM posts p LEFT JOIN users u ON p.publisherId = u.id
+       ORDER BY p.createdAt DESC`
+    );
+    res.json({ list: rows.map(mapPost) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 管理员更新任务审核状态（正常/违规）
+app.put('/api/admin/posts/:id/audit-status', async (req, res, next) => {
+  try {
+    const { auditStatus } = req.body;
+    if (!['正常', '违规'].includes(auditStatus)) {
+      return res.status(400).json({ message: '非法状态' });
+    }
+    await query('UPDATE posts SET auditStatus = ? WHERE id = ?', [auditStatus, req.params.id]);
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }

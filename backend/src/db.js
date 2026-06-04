@@ -43,6 +43,7 @@ function mapPost(row) {
     evaluationOpen: Boolean(row.evaluationOpen),
     evidenceText: row.evidenceText,
     status: row.status,
+    auditStatus: row.auditStatus || '正常', // 新增：审核状态
     buddy: row.buddyName,
     progress: row.progress,
     recommendedScore: row.recommendedScore,
@@ -112,13 +113,11 @@ async function createTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
-  // 兼容旧表：若 openid 列不存在则补加
   const cols = await query(`SHOW COLUMNS FROM users LIKE 'openid'`);
   if (cols.length === 0) {
     await query(`ALTER TABLE users ADD COLUMN openid VARCHAR(100) UNIQUE AFTER id`);
   }
 
-  // 兼容旧表：avatarUrl 扩展为 TEXT 以支持 Base64 头像
   const avatarCol = await query(`SHOW COLUMNS FROM users LIKE 'avatarUrl'`);
   if (avatarCol.length > 0 && avatarCol[0].Type.toLowerCase().includes('varchar')) {
     await query(`ALTER TABLE users MODIFY COLUMN avatarUrl TEXT NOT NULL`);
@@ -138,6 +137,7 @@ async function createTables() {
       evaluationOpen TINYINT(1) NOT NULL DEFAULT 1,
       evidenceText TEXT NOT NULL,
       status VARCHAR(50) NOT NULL,
+      auditStatus ENUM('正常', '违规') NOT NULL DEFAULT '正常',
       buddyName VARCHAR(100) NOT NULL DEFAULT '',
       progress INT NOT NULL DEFAULT 0,
       recommendedScore INT NOT NULL DEFAULT 80,
@@ -148,28 +148,30 @@ async function createTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
-  // 兼容旧表：若 startTime/endTime 列不存在则补加
   const startCol = await query(`SHOW COLUMNS FROM posts LIKE 'startTime'`);
   if (startCol.length === 0) {
     await query(`ALTER TABLE posts ADD COLUMN startTime DATETIME DEFAULT NULL`);
     await query(`ALTER TABLE posts ADD COLUMN endTime DATETIME DEFAULT NULL`);
   }
 
-  // 兼容旧表：搭子人数限制字段
+  // 兼容旧表：管理员状态枚举
+  const auditStatusCol = await query(`SHOW COLUMNS FROM posts LIKE 'auditStatus'`);
+  if (auditStatusCol.length === 0) {
+    await query(`ALTER TABLE posts ADD COLUMN auditStatus ENUM('正常', '违规') NOT NULL DEFAULT '正常' AFTER status`);
+  }
+
   const maxBuddiesCol = await query(`SHOW COLUMNS FROM posts LIKE 'maxBuddies'`);
   if (maxBuddiesCol.length === 0) {
     await query(`ALTER TABLE posts ADD COLUMN maxBuddies INT NOT NULL DEFAULT 1 AFTER buddyName`);
     await query(`ALTER TABLE posts ADD COLUMN currentBuddies INT NOT NULL DEFAULT 0 AFTER maxBuddies`);
   }
 
-  // 兼容旧表：互评标志位
   const pubEvalCol = await query(`SHOW COLUMNS FROM posts LIKE 'publisherEvaluated'`);
   if (pubEvalCol.length === 0) {
     await query(`ALTER TABLE posts ADD COLUMN publisherEvaluated TINYINT(1) NOT NULL DEFAULT 0`);
     await query(`ALTER TABLE posts ADD COLUMN buddyEvaluated TINYINT(1) NOT NULL DEFAULT 0`);
   }
 
-  // 搭子关联表：记录每个加入的搭子
   await query(`
     CREATE TABLE IF NOT EXISTS post_buddies (
       id VARCHAR(64) PRIMARY KEY,
@@ -210,19 +212,16 @@ async function createTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
-  // 兼容旧表：evaluations 加 fromId
   const fromIdCol = await query(`SHOW COLUMNS FROM evaluations LIKE 'fromId'`);
   if (fromIdCol.length === 0) {
     await query(`ALTER TABLE evaluations ADD COLUMN fromId VARCHAR(64) NULL AFTER postId`);
   }
 
-  // 兼容旧表：搭子完成申请记录
   const completionRequestsCol = await query(`SHOW COLUMNS FROM posts LIKE 'completionRequests'`);
   if (completionRequestsCol.length === 0) {
     await query(`ALTER TABLE posts ADD COLUMN completionRequests TEXT NULL`);
   }
 
-  // 兼容旧表：evidences 加 submitterId / submitterName / unique key
   const evidenceSubmitterCol = await query(`SHOW COLUMNS FROM evidences LIKE 'submitterId'`);
   if (evidenceSubmitterCol.length === 0) {
     await query(`
@@ -245,33 +244,27 @@ async function createTables() {
     `);
   }
 
-  // 兼容旧表：post_buddies 加 evaluated 标志位（替代 posts.buddyEvaluated）
   const pbEvaluatedCol = await query(`SHOW COLUMNS FROM post_buddies LIKE 'evaluated'`);
   if (pbEvaluatedCol.length === 0) {
     await query(`ALTER TABLE post_buddies ADD COLUMN evaluated TINYINT(1) NOT NULL DEFAULT 0`);
   }
 
-  // 迁移：evaluations 加 toId（被评价者）
-  // 假设旧数据中 (postId, fromId) 无重复行；若有重复，ADD UNIQUE KEY 会报错需手动清理
   const evalToIdCol = await query(`SHOW COLUMNS FROM evaluations LIKE 'toId'`);
   if (evalToIdCol.length === 0) {
     await query(`ALTER TABLE evaluations ADD COLUMN toId VARCHAR(64) NOT NULL DEFAULT '' AFTER fromId`);
     await query(`ALTER TABLE evaluations ADD UNIQUE KEY uq_eval_from_to (postId, fromId, toId)`);
   }
 
-  // 迁移：posts 加 evaluationDeadline
   const evalDeadlineCol = await query(`SHOW COLUMNS FROM posts LIKE 'evaluationDeadline'`);
   if (evalDeadlineCol.length === 0) {
     await query(`ALTER TABLE posts ADD COLUMN evaluationDeadline DATETIME DEFAULT NULL`);
   }
 
-  // 迁移：users 加 avgScore
   const avgScoreCol = await query(`SHOW COLUMNS FROM users LIKE 'avgScore'`);
   if (avgScoreCol.length === 0) {
     await query(`ALTER TABLE users ADD COLUMN avgScore DECIMAL(3,1) DEFAULT NULL`);
   }
 
-  // 迁移：evaluations.toId 加独立索引，加速 WHERE toId=? 查询
   const evalToIdIdx = await query(`
     SELECT INDEX_NAME FROM information_schema.STATISTICS
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'evaluations' AND INDEX_NAME = 'idx_eval_toId'
@@ -280,7 +273,6 @@ async function createTables() {
     await query(`ALTER TABLE evaluations ADD INDEX idx_eval_toId (toId)`);
   }
 }
-
 
 async function getUserRank(userId) {
   const rows = await query(
@@ -291,7 +283,6 @@ async function getUserRank(userId) {
         OR (a.points = b.points AND a.createdAt < b.createdAt)`,
     [userId]
   );
-
   return rows[0] ? rows[0].rank : null;
 }
 

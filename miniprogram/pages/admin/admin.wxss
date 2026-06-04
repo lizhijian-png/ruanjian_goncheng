@@ -1,0 +1,84 @@
+.container {
+  padding: 30rpx;
+  background-color: #f8fafc;
+  min-height: 100vh;
+}
+.header {
+  margin-bottom: 24rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.title {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #334155;
+}
+.subtitle {
+  font-size: 26rpx;
+  color: #64748b;
+}
+.post-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+.post-card {
+  background: #ffffff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
+}
+.post-content {
+  margin-bottom: 16rpx;
+}
+.post-title {
+  font-size: 32rpx;
+  font-weight: 500;
+  color: #0f172a;
+  margin-bottom: 8rpx;
+}
+.post-info, .post-time {
+  font-size: 26rpx;
+  color: #64748b;
+  margin-bottom: 4rpx;
+}
+.post-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 16rpx;
+}
+.audit-tag {
+  font-size: 24rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+}
+.tag-normal {
+  background: #dcfce7;
+  color: #166534;
+}
+.tag-ban {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.btn-toggle {
+  margin: 0;
+  font-size: 26rpx;
+  line-height: 2;
+  padding: 0 20rpx;
+}
+.btn-warn {
+  background-color: #ef4444;
+  color: white;
+}
+.btn-safe {
+  background-color: #22c55e;
+  color: white;
+}
+.empty-tip {
+  text-align: center;
+  color: #94a3b8;
+  margin-top: 100rpx;
+}
