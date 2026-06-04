@@ -5,7 +5,8 @@
     "pages/publish/publish",
     "pages/ranking/ranking",
     "pages/profile/profile",
-    "pages/post-detail/post-detail"
+    "pages/post-detail/post-detail",
+    "pages/admin/admin"
   ],
   "tabBar": {
     "color": "#8b6f88",

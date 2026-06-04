@@ -249,3 +249,16 @@
 .small-text {
   font-size: 22rpx;
 }
+
+.admin-btn {
+  margin: 40rpx auto;
+  width: fit-content;
+  font-size: 24rpx;
+  color: #cbd5e1; /* 使用非常浅的灰色，不抢眼 */
+  text-align: center;
+  padding: 10rpx 20rpx;
+}
+
+.admin-btn:active {
+  color: #94a3b8; /* 点击时稍微变深一点 */
+}
