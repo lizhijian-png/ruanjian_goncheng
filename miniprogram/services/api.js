@@ -166,6 +166,26 @@ function getPointLogs(userId) {
   return request({ url: `/api/users/${userId}/point-logs` });
 }
 
+function getAnnotations(postId) {
+  return request({ url: `/api/posts/${postId}/annotations` });
+}
+
+function createAnnotation(postId, payload) {
+  return request({
+    url: `/api/posts/${postId}/annotations`,
+    method: 'POST',
+    data: payload
+  });
+}
+
+function deleteAnnotation(postId, annId, userId) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}`,
+    method: 'DELETE',
+    data: { userId }
+  });
+}
+
 module.exports = {
   login,
   bind,
@@ -186,5 +206,8 @@ module.exports = {
   startPost,
   requestComplete,
   getEvaluationsReceived,
-  getPointLogs
+  getPointLogs,
+  getAnnotations,
+  createAnnotation,
+  deleteAnnotation
 };
