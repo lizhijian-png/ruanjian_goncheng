@@ -2,7 +2,8 @@
   <!-- 证据卡片 -->
   <view class="card evidence-card">
     <view class="card-title">TA 的证据</view>
-    <view wx:if="{{targetEvidence}}" class="evidence-text">{{targetEvidence}}</view>
+    <view wx:if="{{evidenceLoading}}" class="muted empty-hint">加载中...</view>
+    <view wx:elif="{{targetEvidence}}" class="evidence-text">{{targetEvidence}}</view>
     <view wx:else class="muted empty-hint">暂未提交证据</view>
   </view>
 
@@ -30,7 +31,7 @@
     />
     <view class="form-btns">
       <button class="ghost-btn form-btn" bindtap="cancel">取消</button>
-      <button class="primary-btn form-btn" bindtap="submit">提交</button>
+      <button class="primary-btn form-btn" bindtap="submit" disabled="{{submitting}}">提交</button>
     </view>
   </view>
 </view>

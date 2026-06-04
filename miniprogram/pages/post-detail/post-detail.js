@@ -47,7 +47,8 @@ Page({
   },
   onShow() {
     if (this._firstShow) { this._firstShow = false; return; }
-    if (this.data.post) {
+    if (this._returnFromEvaluate && this.data.post) {
+      this._returnFromEvaluate = false;
       this._loadDetail(this.data.post.id);
     }
   },
@@ -239,6 +240,7 @@ Page({
     const { userid, nickname, evaluated } = e.currentTarget.dataset;
     if (evaluated) return;
     this.setData({ showPersonPicker: false });
+    this._returnFromEvaluate = true;
     wx.navigateTo({
       url: `/pages/evaluate/evaluate?postId=${this.data.post.id}&targetUserId=${userid}&targetNickname=${encodeURIComponent(nickname)}`
     });

@@ -7,6 +7,7 @@ Page({
     targetNickname: '',
     currentUserId: '',
     targetEvidence: '',
+    evidenceLoading: true,
     evalScore: 5,
     evalContent: '',
     submitting: false
@@ -21,8 +22,9 @@ Page({
     try {
       const detail = await api.getPostDetail(postId, currentUserId);
       const evidence = (detail.evidenceList || []).find(e => e.submitterId === targetUserId);
-      this.setData({ targetEvidence: evidence ? evidence.value : '' });
+      this.setData({ targetEvidence: evidence ? evidence.value : '', evidenceLoading: false });
     } catch (err) {
+      this.setData({ evidenceLoading: false });
       wx.showToast({ title: err.message || '加载失败', icon: 'none' });
     }
   },
