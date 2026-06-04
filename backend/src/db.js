@@ -309,7 +309,9 @@ async function createTables() {
       createdAt   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_annotations_post (postId),
       CONSTRAINT fk_annotations_post FOREIGN KEY (postId)
-        REFERENCES posts(id) ON DELETE CASCADE
+        REFERENCES posts(id) ON DELETE CASCADE,
+      CONSTRAINT fk_annotations_user FOREIGN KEY (userId)
+        REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 }
