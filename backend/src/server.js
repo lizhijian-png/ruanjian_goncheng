@@ -710,8 +710,12 @@ app.post('/api/posts/:id/evidence', async (req, res, next) => {
     const { userId, submitterName, content, imageUrls } = req.body;
     if (!userId || !String(content || '').trim()) return res.status(400).json({ message: '缺少 userId 或证据内容' });
 
-    const safeImageUrls = Array.isArray(imageUrls) ? imageUrls.slice(0, 3) : [];
-    if (safeImageUrls.length > 3) return res.status(400).json({ message: '图片最多 3 张' });
+    const rawImageUrls = Array.isArray(imageUrls) ? imageUrls : [];
+    if (rawImageUrls.length > 3) return res.status(400).json({ message: '图片最多 3 张' });
+    if (rawImageUrls.some(u => typeof u !== 'string' || !u.startsWith('/uploads/'))) {
+      return res.status(400).json({ message: '图片地址无效' });
+    }
+    const safeImageUrls = rawImageUrls;
 
     const safeSubmitterName = String(submitterName || userId).trim();
 
