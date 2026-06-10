@@ -719,6 +719,7 @@ app.post('/api/posts/:id/evaluate', async (req, res, next) => {
 
 app.post('/api/posts/:id/completion-vote', async (req, res, next) => {
   try {
+    await syncPostStatus(req.params.id);
     const { userId, targetId, vote } = req.body;
     if (!userId || !targetId || !['complete', 'incomplete'].includes(vote)) {
       return res.status(400).json({ message: '缺少参数或 vote 值非法' });
@@ -731,9 +732,9 @@ app.post('/api/posts/:id/completion-vote', async (req, res, next) => {
     const post = postRows[0];
     if (!post) return res.status(404).json({ message: '帖子不存在' });
     if (post.status !== '待评价') {
-      return res.status(400).json({ message: '只有待评价状态才能投票' });
+      return res.status(400).json({ message: '只有待评价状态的任务才能投票' });
     }
-    if (post.evaluationDeadline && new Date() > new Date(post.evaluationDeadline)) {
+    if (post.evaluationDeadline && new Date() >= new Date(post.evaluationDeadline)) {
       return res.status(403).json({ message: '评价窗口已关闭' });
     }
 
@@ -746,6 +747,7 @@ app.post('/api/posts/:id/completion-vote', async (req, res, next) => {
       return res.status(400).json({ message: '被投票者不是该任务参与者' });
     }
 
+    // ON DUPLICATE KEY fires on uq_vote(postId,voterId,targetId); id is only used for new rows
     const voteId = createId('cv');
     await query(
       `INSERT INTO completion_votes (id, postId, voterId, targetId, vote)
