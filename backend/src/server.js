@@ -383,10 +383,14 @@ app.get('/api/posts/:id', async (req, res, next) => {
     const postRow = postRows[0];
     if (!postRow) return res.status(404).json({ message: '帖子不存在' });
 
-    const evidenceList = await query(
-      'SELECT submitterId, submitterName, type, value FROM evidences WHERE postId = ? ORDER BY createdAt ASC',
+    const evidenceRows = await query(
+      'SELECT submitterId, submitterName, type, value, imageUrls FROM evidences WHERE postId = ? ORDER BY createdAt ASC',
       [req.params.id]
     );
+    const evidenceList = evidenceRows.map(row => ({
+      ...row,
+      imageUrls: row.imageUrls ? JSON.parse(row.imageUrls) : []
+    }));
     const buddies = await query(
       'SELECT userId, nickname, joinedAt FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC',
       [req.params.id]
