@@ -343,6 +343,7 @@ app.get('/api/posts/:id', async (req, res, next) => {
     const viewerId = req.query.viewerId || '';
     let evaluationsSent = [];
     let evaluationsReceived = [];
+    let myCompletionVotes = {};
     if (viewerId) {
       [evaluationsSent, evaluationsReceived] = await Promise.all([
         query(
@@ -358,6 +359,12 @@ app.get('/api/posts/:id', async (req, res, next) => {
           [req.params.id, viewerId]
         )
       ]);
+
+      const voteRows = await query(
+        'SELECT targetId, vote FROM completion_votes WHERE postId = ? AND voterId = ?',
+        [req.params.id, viewerId]
+      );
+      myCompletionVotes = Object.fromEntries(voteRows.map(r => [r.targetId, r.vote]));
     }
 
     const participantIds = new Set([postRow.publisherId, ...buddies.map(b => b.userId)]);
@@ -375,7 +382,8 @@ app.get('/api/posts/:id', async (req, res, next) => {
       buddies,
       hasEvidence,
       evaluationsSent,
-      evaluationsReceived
+      evaluationsReceived,
+      myCompletionVotes
     });
   } catch (error) {
     next(error);
