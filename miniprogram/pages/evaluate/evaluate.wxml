@@ -29,6 +29,24 @@
       bindinput="onEvalContentInput"
       value="{{evalContent}}"
     />
+
+    <!-- 任务完成判定 -->
+    <view class="label completion-label">任务完成判定</view>
+    <view class="completion-vote-row">
+      <view
+        class="vote-btn {{completionVote === 'complete' ? 'vote-btn--active-complete' : ''}} {{deadlinePassed ? 'vote-btn--disabled' : ''}}"
+        data-vote="complete"
+        bindtap="onVoteComplete"
+      >✓ 已完成</view>
+      <view
+        class="vote-btn {{completionVote === 'incomplete' ? 'vote-btn--active-incomplete' : ''}} {{deadlinePassed ? 'vote-btn--disabled' : ''}}"
+        data-vote="incomplete"
+        bindtap="onVoteComplete"
+      >✗ 未完成</view>
+    </view>
+    <view wx:if="{{deadlinePassed}}" class="muted completion-hint">评价窗口已关闭</view>
+    <view wx:else class="muted completion-hint">未投票默认视为已完成</view>
+
     <view class="form-btns">
       <button class="ghost-btn form-btn" bindtap="cancel">取消</button>
       <button class="primary-btn form-btn" bindtap="submit" disabled="{{submitting}}">提交</button>
