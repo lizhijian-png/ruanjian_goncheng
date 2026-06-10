@@ -83,7 +83,14 @@ async function syncPostStatus(postId) {
 }
 
 async function settlePost(postId) {
-  let publisherId = null;
+  const postRows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
+  const post = postRows[0];
+  if (!post) return;
+
+  const buddyRows = await query('SELECT userId FROM post_buddies WHERE postId = ?', [postId]);
+  const participants = [post.publisherId, ...buddyRows.map(b => b.userId)];
+  const N = participants.length;
+
   await withTransaction(async (connection) => {
     const [result] = await connection.execute(
       "UPDATE posts SET status = '已完成', progress = 100 WHERE id = ? AND status = '待评价'",
@@ -91,39 +98,49 @@ async function settlePost(postId) {
     );
     if (result.affectedRows === 0) return;
 
-    const [postRows] = await connection.execute('SELECT * FROM posts WHERE id = ?', [postId]);
-    const post = postRows[0];
-    publisherId = post.publisherId;
-
-    await connection.execute(
-      'UPDATE users SET points = points + ? WHERE id = ?',
-      [post.reward || 0, post.publisherId]
-    );
-    await insertPointLog(connection, post.publisherId, post.reward || 0, `完成任务《${post.title}》`);
-
-    const [buddyRows] = await connection.execute(
-      'SELECT userId FROM post_buddies WHERE postId = ?',
-      [postId]
-    );
-    for (const buddy of buddyRows) {
-      await connection.execute(
-        'UPDATE users SET points = points + ? WHERE id = ?',
-        [post.reward || 0, buddy.userId]
+    for (const targetId of participants) {
+      const [[{ rejectCount }]] = await connection.execute(
+        `SELECT COUNT(*) AS rejectCount FROM completion_votes
+         WHERE postId = ? AND targetId = ? AND vote = 'incomplete'`,
+        [postId, targetId]
       );
-      await insertPointLog(connection, buddy.userId, post.reward || 0, `完成任务《${post.title}》`);
+      const voterCount = N - 1;
+      const isComplete = (voterCount === 0 || Number(rejectCount) * 2 < voterCount) ? 1 : 0;
+
+      if (targetId === post.publisherId) {
+        await connection.execute(
+          'UPDATE posts SET publisherComplete = ? WHERE id = ?',
+          [isComplete, postId]
+        );
+      } else {
+        await connection.execute(
+          'UPDATE post_buddies SET isComplete = ? WHERE postId = ? AND userId = ?',
+          [isComplete, postId, targetId]
+        );
+      }
+
+      if (isComplete) {
+        await connection.execute(
+          'UPDATE users SET points = points + ? WHERE id = ?',
+          [post.reward || 0, targetId]
+        );
+        await insertPointLog(connection, targetId, post.reward || 0, `完成任务《${post.title}》`);
+      }
     }
   });
-  if (publisherId) {
-    await recalcCompletionRate(publisherId);
-    const evaluated = await query(
-      'SELECT DISTINCT toId FROM evaluations WHERE postId = ?',
-      [postId]
-    );
-    for (const { toId } of evaluated) {
-      setImmediate(() => generateAiComment(toId).catch(err =>
-        console.error(`[AI] setImmediate error for ${toId}:`, err)
-      ));
-    }
+
+  for (const targetId of participants) {
+    await recalcCompletionRate(targetId);
+  }
+
+  const evaluated = await query(
+    'SELECT DISTINCT toId FROM evaluations WHERE postId = ?',
+    [postId]
+  );
+  for (const { toId } of evaluated) {
+    setImmediate(() => generateAiComment(toId).catch(err =>
+      console.error(`[AI] setImmediate error for ${toId}:`, err)
+    ));
   }
 }
 
@@ -785,12 +802,27 @@ app.get('/api/users/:id/evaluations-received', async (req, res, next) => {
 });
 
 async function recalcCompletionRate(userId) {
-  const rows = await query(
-    `SELECT COUNT(*) AS total, SUM(status = '已完成') AS done FROM posts WHERE publisherId = ?`,
-    [userId]
-  );
-  const { total, done } = rows[0];
-  const rate = total > 0 ? Math.round(((done || 0) / total) * 100) : 0;
+  const [pubRows, buddyRows] = await Promise.all([
+    query(
+      `SELECT COUNT(*) AS total, SUM(publisherComplete = 1) AS done
+       FROM posts WHERE publisherId = ? AND publisherComplete IS NOT NULL`,
+      [userId]
+    ),
+    query(
+      `SELECT COUNT(*) AS total, SUM(isComplete = 1) AS done
+       FROM post_buddies WHERE userId = ? AND isComplete IS NOT NULL`,
+      [userId]
+    )
+  ]);
+
+  const pubTotal = Number(pubRows[0].total) || 0;
+  const pubDone = Number(pubRows[0].done) || 0;
+  const buddyTotal = Number(buddyRows[0].total) || 0;
+  const buddyDone = Number(buddyRows[0].done) || 0;
+
+  const total = pubTotal + buddyTotal;
+  const done = pubDone + buddyDone;
+  const rate = total > 0 ? Math.round((done / total) * 100) : 0;
   await query('UPDATE users SET completionRate = ? WHERE id = ?', [rate, userId]);
 }
 
