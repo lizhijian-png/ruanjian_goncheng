@@ -307,6 +307,32 @@ async function createTables() {
         REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+
+  // completion_votes 表：记录参与者对他人完成情况的投票
+  await query(`
+    CREATE TABLE IF NOT EXISTS completion_votes (
+      id        VARCHAR(64) PRIMARY KEY,
+      postId    VARCHAR(64) NOT NULL,
+      voterId   VARCHAR(64) NOT NULL,
+      targetId  VARCHAR(64) NOT NULL,
+      vote      ENUM('complete', 'incomplete') NOT NULL,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_vote (postId, voterId, targetId),
+      CONSTRAINT fk_cv_post FOREIGN KEY (postId) REFERENCES posts(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  // post_buddies 表新增 isComplete 字段（NULL=未结算, 0=未完成, 1=已完成）
+  const pbIsCompleteCol = await query(`SHOW COLUMNS FROM post_buddies LIKE 'isComplete'`);
+  if (pbIsCompleteCol.length === 0) {
+    await query(`ALTER TABLE post_buddies ADD COLUMN isComplete TINYINT(1) NULL`);
+  }
+
+  // posts 表新增 publisherComplete 字段（NULL=未结算, 0=未完成, 1=已完成）
+  const publisherCompleteCol = await query(`SHOW COLUMNS FROM posts LIKE 'publisherComplete'`);
+  if (publisherCompleteCol.length === 0) {
+    await query(`ALTER TABLE posts ADD COLUMN publisherComplete TINYINT(1) NULL`);
+  }
 }
 
 async function getUserRank(userId) {
