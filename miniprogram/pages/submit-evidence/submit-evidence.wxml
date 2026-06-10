@@ -1,0 +1,30 @@
+<view class="container">
+  <view class="card">
+    <view class="card-title">{{postTitle}}</view>
+
+    <view class="label">证据说明</view>
+    <textarea
+      class="evidence-textarea"
+      placeholder="描述你的完成情况..."
+      placeholder-class="placeholder"
+      bindinput="onTextInput"
+      value="{{evidenceText}}"
+    />
+
+    <view class="label img-label">图片（最多 3 张）</view>
+    <view class="img-row">
+      <block wx:for="{{imageUrls}}" wx:key="index">
+        <view class="img-wrap">
+          <image class="img-thumb" src="{{item}}" mode="aspectFill" />
+          <view class="img-del" data-index="{{index}}" bindtap="removeImage">×</view>
+        </view>
+      </block>
+      <view wx:if="{{imageUrls.length < 3}}" class="img-add" bindtap="chooseImage">+</view>
+    </view>
+
+    <view class="form-btns">
+      <button class="ghost-btn form-btn" bindtap="cancel">取消</button>
+      <button class="primary-btn form-btn" bindtap="submit" disabled="{{submitting}}">提交</button>
+    </view>
+  </view>
+</view>
