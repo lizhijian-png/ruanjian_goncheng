@@ -91,6 +91,14 @@ function submitEvaluation(postId, userId, toId, score, content) {
   return request({ url: `/api/posts/${postId}/evaluate`, method: 'POST', data: { userId, toId, score, content } });
 }
 
+function submitCompletionVote(postId, userId, targetId, vote) {
+  return request({
+    url: `/api/posts/${postId}/completion-vote`,
+    method: 'POST',
+    data: { userId, targetId, vote }
+  });
+}
+
 function startPost(postId, userId) {
   return request({ url: `/api/posts/${postId}/start`, method: 'POST', data: { userId } });
 }
@@ -162,6 +170,7 @@ module.exports = {
   quitPost,
   abandonPost,
   submitEvaluation,
+  submitCompletionVote,
   startPost,
   requestComplete,
   getEvaluationsReceived,
