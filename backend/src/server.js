@@ -717,6 +717,49 @@ app.post('/api/posts/:id/evaluate', async (req, res, next) => {
   }
 });
 
+app.post('/api/posts/:id/completion-vote', async (req, res, next) => {
+  try {
+    const { userId, targetId, vote } = req.body;
+    if (!userId || !targetId || !['complete', 'incomplete'].includes(vote)) {
+      return res.status(400).json({ message: '缺少参数或 vote 值非法' });
+    }
+    if (userId === targetId) {
+      return res.status(400).json({ message: '不能对自己投票' });
+    }
+
+    const postRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
+    const post = postRows[0];
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
+    if (post.status !== '待评价') {
+      return res.status(400).json({ message: '只有待评价状态才能投票' });
+    }
+    if (post.evaluationDeadline && new Date() > new Date(post.evaluationDeadline)) {
+      return res.status(403).json({ message: '评价窗口已关闭' });
+    }
+
+    const allBuddies = await query('SELECT userId FROM post_buddies WHERE postId = ?', [req.params.id]);
+    const participantIds = new Set([post.publisherId, ...allBuddies.map(b => b.userId)]);
+    if (!participantIds.has(userId)) {
+      return res.status(403).json({ message: '只有参与者才能投票' });
+    }
+    if (!participantIds.has(targetId)) {
+      return res.status(400).json({ message: '被投票者不是该任务参与者' });
+    }
+
+    const voteId = createId('cv');
+    await query(
+      `INSERT INTO completion_votes (id, postId, voterId, targetId, vote)
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE vote = VALUES(vote)`,
+      [voteId, req.params.id, userId, targetId, vote]
+    );
+
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/api/users/:id/evaluations-received', async (req, res, next) => {
   try {
     const rows = await query(
