@@ -5,6 +5,15 @@
     <view wx:if="{{evidenceLoading}}" class="muted empty-hint">加载中...</view>
     <view wx:elif="{{targetEvidence}}" class="evidence-text">{{targetEvidence}}</view>
     <view wx:else class="muted empty-hint">暂未提交证据</view>
+    <view wx:if="{{targetEvidenceImages.length > 0}}" class="evidence-img-row">
+      <image
+        wx:for="{{targetEvidenceImages}}"
+        wx:key="index"
+        class="evidence-img-thumb"
+        src="{{item}}"
+        mode="aspectFill"
+      />
+    </view>
   </view>
 
   <!-- 评价表单 -->

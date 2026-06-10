@@ -747,7 +747,19 @@ app.post('/api/posts/:id/evidence', async (req, res, next) => {
       return res.status(400).json({ message: `任务尚未结束，证据须在任务完成后或到达结束时间（${endStr}）后提交` });
     }
 
-    const id = createId('e');
+    const existingRows = await query('SELECT id, imageUrls FROM evidences WHERE postId = ? AND submitterId = ?', [req.params.id, userId]);
+    if (existingRows.length > 0) {
+      const oldUrls = existingRows[0].imageUrls ? JSON.parse(existingRows[0].imageUrls) : [];
+      const newSet = new Set(safeImageUrls);
+      for (const oldUrl of oldUrls) {
+        if (!newSet.has(oldUrl)) {
+          const filePath = path.join(__dirname, '..', oldUrl);
+          fs.unlink(filePath, () => {});
+        }
+      }
+    }
+
+    const id = existingRows.length > 0 ? existingRows[0].id : createId('e');
     const trimmedValue = String(content).trim();
     const imageUrlsJson = safeImageUrls.length > 0 ? JSON.stringify(safeImageUrls) : null;
 

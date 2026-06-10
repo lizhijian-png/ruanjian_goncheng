@@ -72,7 +72,8 @@ function completePost(id, userId) {
 }
 
 function submitEvidence(postId, userId, submitterName, content, imageUrls = []) {
-  return request({ url: `/api/posts/${postId}/evidence`, method: 'POST', data: { userId, submitterName, content, imageUrls } });
+  const relativeUrls = imageUrls.map(u => u.startsWith(config.apiBaseUrl) ? u.slice(config.apiBaseUrl.length) : u);
+  return request({ url: `/api/posts/${postId}/evidence`, method: 'POST', data: { userId, submitterName, content, imageUrls: relativeUrls } });
 }
 
 function joinPost(id, userId) {
@@ -149,7 +150,7 @@ function uploadEvidenceImage(localPath, userId) {
         try {
           const data = JSON.parse(res.data);
           if (res.statusCode >= 200 && res.statusCode < 300 && data.url) {
-            resolve(data.url);
+            resolve(config.apiBaseUrl + data.url);
           } else {
             reject(new Error(data.message || '上传失败'));
           }

@@ -1,4 +1,5 @@
 const api = require('../../services/api');
+const config = require('../../env');
 
 Page({
   data: {
@@ -7,6 +8,7 @@ Page({
     targetNickname: '',
     currentUserId: '',
     targetEvidence: '',
+    targetEvidenceImages: [],
     evidenceLoading: true,
     evalScore: 5,
     evalContent: '',
@@ -35,6 +37,7 @@ Page({
 
       this.setData({
         targetEvidence: evidence ? evidence.value : '',
+        targetEvidenceImages: evidence ? (evidence.imageUrls || []).map(u => u.startsWith('http') ? u : config.apiBaseUrl + u) : [],
         evidenceLoading: false,
         completionVote,
         deadlinePassed

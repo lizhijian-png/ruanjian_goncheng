@@ -102,6 +102,20 @@
   opacity: 0.5;
 }
 
+.evidence-img-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 16rpx;
+}
+
+.evidence-img-thumb {
+  width: 180rpx;
+  height: 180rpx;
+  border-radius: 12rpx;
+  background: #f1f5f9;
+}
+
 .completion-hint {
   font-size: 24rpx;
   margin-bottom: 20rpx;

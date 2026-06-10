@@ -1,4 +1,5 @@
 const api = require('../../services/api');
+const config = require('../../env');
 
 Page({
   data: {
@@ -31,7 +32,7 @@ Page({
       this.setData({
         postTitle: detail.post ? detail.post.title : '',
         evidenceText: myEvidence ? myEvidence.value : '',
-        imageUrls: myEvidence ? (myEvidence.imageUrls || []) : [],
+        imageUrls: myEvidence ? (myEvidence.imageUrls || []).map(u => u.startsWith('http') ? u : config.apiBaseUrl + u) : [],
         titleLoading: false
       });
     } catch (err) {

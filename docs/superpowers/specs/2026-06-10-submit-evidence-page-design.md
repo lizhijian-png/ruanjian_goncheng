@@ -60,7 +60,7 @@ post-detail 的 `onShow` 已有 `_returnFromEvaluate` 刷新机制。新增 `_re
 ### submit-evidence 页面结构（从上到下）
 
 ```
-帖子标题（只读，从 options 传入）
+帖子标题（只读，从 getPostDetail 返回值取得，API 加载前显示空）
 
 证据说明
   textarea（placeholder: "描述你的完成情况..."）
