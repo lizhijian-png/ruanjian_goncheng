@@ -157,7 +157,7 @@ function uploadEvidenceImage(localPath, userId) {
           reject(new Error('上传响应解析失败'));
         }
       },
-      fail: (err) => reject(err)
+      fail: (err) => reject(new Error(err.errMsg || '上传失败'))
     });
   });
 }
