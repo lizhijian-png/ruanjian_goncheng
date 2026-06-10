@@ -345,7 +345,8 @@ app.get('/api/posts/:id', async (req, res, next) => {
     let evaluationsReceived = [];
     let myCompletionVotes = {};
     if (viewerId) {
-      [evaluationsSent, evaluationsReceived] = await Promise.all([
+      let voteRows;
+      [evaluationsSent, evaluationsReceived, voteRows] = await Promise.all([
         query(
           `SELECT e.toId, u.nickname AS toName, e.score, e.content, e.createdAt
            FROM evaluations e LEFT JOIN users u ON e.toId = u.id
@@ -357,13 +358,12 @@ app.get('/api/posts/:id', async (req, res, next) => {
            FROM evaluations e
            WHERE e.postId = ? AND e.toId = ? ORDER BY e.createdAt ASC`,
           [req.params.id, viewerId]
+        ),
+        query(
+          'SELECT targetId, vote FROM completion_votes WHERE postId = ? AND voterId = ?',
+          [req.params.id, viewerId]
         )
       ]);
-
-      const voteRows = await query(
-        'SELECT targetId, vote FROM completion_votes WHERE postId = ? AND voterId = ?',
-        [req.params.id, viewerId]
-      );
       myCompletionVotes = Object.fromEntries(voteRows.map(r => [r.targetId, r.vote]));
     }
 
