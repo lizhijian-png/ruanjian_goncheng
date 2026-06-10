@@ -10,7 +10,10 @@ Page({
     evidenceLoading: true,
     evalScore: 5,
     evalContent: '',
-    submitting: false
+    submitting: false,
+    completionVote: 'complete',  // 'complete' | 'incomplete', default supports completion
+    voteSubmitting: false,
+    deadlinePassed: false
   },
   async onLoad(options) {
     const { postId, targetUserId } = options;
@@ -22,7 +25,20 @@ Page({
     try {
       const detail = await api.getPostDetail(postId, currentUserId);
       const evidence = (detail.evidenceList || []).find(e => e.submitterId === targetUserId);
-      this.setData({ targetEvidence: evidence ? evidence.value : '', evidenceLoading: false });
+
+      const deadline = detail.post && detail.post.evaluationDeadline;
+      const deadlinePassed = deadline ? new Date() > new Date(deadline) : false;
+
+      // Restore previously cast vote if any; absent key means not voted (visually defaults to 'complete')
+      const myVotes = detail.myCompletionVotes || {};
+      const completionVote = myVotes[targetUserId] || 'complete';
+
+      this.setData({
+        targetEvidence: evidence ? evidence.value : '',
+        evidenceLoading: false,
+        completionVote,
+        deadlinePassed
+      });
     } catch (err) {
       this.setData({ evidenceLoading: false });
       wx.showToast({ title: err.message || '加载失败', icon: 'none' });
@@ -36,6 +52,26 @@ Page({
   },
   cancel() {
     wx.navigateBack();
+  },
+  async onVoteComplete(e) {
+    if (this.data.deadlinePassed || this.data.voteSubmitting) return;
+    const vote = e.currentTarget.dataset.vote;
+    if (vote === this.data.completionVote) return;
+
+    this.setData({ voteSubmitting: true });
+    try {
+      await api.submitCompletionVote(
+        this.data.postId,
+        this.data.currentUserId,
+        this.data.targetUserId,
+        vote
+      );
+      this.setData({ completionVote: vote });
+    } catch (err) {
+      wx.showToast({ title: err.message || '投票失败', icon: 'none' });
+    } finally {
+      this.setData({ voteSubmitting: false });
+    }
   },
   async submit() {
     if (this.data.submitting) return;
