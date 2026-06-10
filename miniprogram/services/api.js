@@ -139,6 +139,29 @@ function deleteAnnotation(postId, annId, userId) {
   });
 }
 
+function uploadEvidenceImage(localPath, userId) {
+  return new Promise((resolve, reject) => {
+    wx.uploadFile({
+      url: `${config.apiBaseUrl}/api/upload?userId=${encodeURIComponent(userId)}`,
+      filePath: localPath,
+      name: 'file',
+      success: (res) => {
+        try {
+          const data = JSON.parse(res.data);
+          if (res.statusCode >= 200 && res.statusCode < 300 && data.url) {
+            resolve(data.url);
+          } else {
+            reject(new Error(data.message || '上传失败'));
+          }
+        } catch (e) {
+          reject(new Error('上传响应解析失败'));
+        }
+      },
+      fail: (err) => reject(err)
+    });
+  });
+}
+
 // ================== 管理员专用 API ==================
 
 function adminLogin(password) {
@@ -166,6 +189,7 @@ module.exports = {
   deletePost,
   completePost,
   submitEvidence,
+  uploadEvidenceImage,
   joinPost,
   quitPost,
   abandonPost,

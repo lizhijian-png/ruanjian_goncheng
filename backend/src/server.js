@@ -682,12 +682,17 @@ app.post('/api/posts/:id/quit', async (req, res, next) => {
   }
 });
 
-app.post('/api/upload', upload.single('file'), async (req, res, next) => {
+async function requireUserId(req, res, next) {
+  const userId = req.body.userId || req.query.userId;
+  if (!userId) return res.status(400).json({ message: '缺少 userId' });
+  const userRows = await query('SELECT id FROM users WHERE id = ?', [userId]);
+  if (userRows.length === 0) return res.status(403).json({ message: '用户不存在' });
+  req.verifiedUserId = userId;
+  next();
+}
+
+app.post('/api/upload', requireUserId, upload.single('file'), (req, res, next) => {
   try {
-    const { userId } = req.body;
-    if (!userId) return res.status(400).json({ message: '缺少 userId' });
-    const userRows = await query('SELECT id FROM users WHERE id = ?', [userId]);
-    if (userRows.length === 0) return res.status(403).json({ message: '用户不存在' });
     if (!req.file) return res.status(400).json({ message: '未收到文件' });
     res.json({ url: `/uploads/${req.file.filename}` });
   } catch (error) {
