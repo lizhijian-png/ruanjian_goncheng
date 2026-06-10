@@ -707,8 +707,12 @@ app.post('/api/upload', requireUserId, upload.single('file'), (req, res, next) =
 app.post('/api/posts/:id/evidence', async (req, res, next) => {
   try {
     await syncPostStatus(req.params.id);
-    const { userId, submitterName, content } = req.body;
+    const { userId, submitterName, content, imageUrls } = req.body;
     if (!userId || !String(content || '').trim()) return res.status(400).json({ message: '缺少 userId 或证据内容' });
+
+    const safeImageUrls = Array.isArray(imageUrls) ? imageUrls.slice(0, 3) : [];
+    if (safeImageUrls.length > 3) return res.status(400).json({ message: '图片最多 3 张' });
+
     const safeSubmitterName = String(submitterName || userId).trim();
 
     const postRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
@@ -729,13 +733,22 @@ app.post('/api/posts/:id/evidence', async (req, res, next) => {
 
     const id = createId('e');
     const trimmedValue = String(content).trim();
+    const imageUrlsJson = safeImageUrls.length > 0 ? JSON.stringify(safeImageUrls) : null;
+
     const result = await query(
-      `INSERT INTO evidences (id, postId, submitterId, submitterName, type, value) VALUES (?, ?, ?, ?, '文字', ?)
-       ON DUPLICATE KEY UPDATE id = VALUES(id), submitterName = VALUES(submitterName), value = VALUES(value), createdAt = NOW()`,
-      [id, req.params.id, userId, safeSubmitterName, trimmedValue]
+      `INSERT INTO evidences (id, postId, submitterId, submitterName, type, value, imageUrls) VALUES (?, ?, ?, ?, '文字', ?, ?)
+       ON DUPLICATE KEY UPDATE id = VALUES(id), submitterName = VALUES(submitterName), value = VALUES(value), imageUrls = VALUES(imageUrls), createdAt = NOW()`,
+      [id, req.params.id, userId, safeSubmitterName, trimmedValue, imageUrlsJson]
     );
 
-    const evidence = { id, submitterId: userId, submitterName: safeSubmitterName, type: '文字', value: trimmedValue };
+    const evidence = {
+      id,
+      submitterId: userId,
+      submitterName: safeSubmitterName,
+      type: '文字',
+      value: trimmedValue,
+      imageUrls: safeImageUrls
+    };
     const statusCode = result.affectedRows === 1 ? 201 : 200;
     res.status(statusCode).json(evidence);
   } catch (error) {
