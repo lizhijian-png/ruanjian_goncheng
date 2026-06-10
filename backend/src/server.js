@@ -387,10 +387,18 @@ app.get('/api/posts/:id', async (req, res, next) => {
       'SELECT submitterId, submitterName, type, value, imageUrls FROM evidences WHERE postId = ? ORDER BY createdAt ASC',
       [req.params.id]
     );
-    const evidenceList = evidenceRows.map(row => ({
-      ...row,
-      imageUrls: row.imageUrls ? JSON.parse(row.imageUrls) : []
-    }));
+    const evidenceList = evidenceRows.map(row => {
+      let imageUrls = [];
+      if (row.imageUrls) {
+        try {
+          const parsed = JSON.parse(row.imageUrls);
+          imageUrls = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          imageUrls = [];
+        }
+      }
+      return { ...row, imageUrls };
+    });
     const buddies = await query(
       'SELECT userId, nickname, joinedAt FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC',
       [req.params.id]
