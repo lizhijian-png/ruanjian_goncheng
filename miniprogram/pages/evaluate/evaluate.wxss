@@ -61,3 +61,49 @@
   height: 76rpx;
   font-size: 28rpx;
 }
+
+.completion-label {
+  margin-top: 20rpx;
+}
+
+.completion-vote-row {
+  display: flex;
+  gap: 20rpx;
+  margin: 14rpx 0 4rpx;
+}
+
+.vote-btn {
+  flex: 1;
+  height: 72rpx;
+  line-height: 72rpx;
+  text-align: center;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+  border: 2rpx solid rgba(255,122,89,0.25);
+  color: #64748b;
+  background: rgba(255,255,255,0.7);
+}
+
+.vote-btn--active-complete {
+  background: #dcfce7;
+  border-color: #22c55e;
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.vote-btn--active-incomplete {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.vote-btn--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.completion-hint {
+  font-size: 24rpx;
+  margin-bottom: 20rpx;
+}
