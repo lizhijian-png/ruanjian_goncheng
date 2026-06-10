@@ -72,7 +72,7 @@
       <button wx:if="{{isBuddy && post.status === '进行中' && hasRequested}}" class="ghost-btn action-btn" disabled>已申请完成</button>
 
       <!-- 参与者：待评价可提交证据 -->
-      <button wx:if="{{canSubmitEvidence && !showEvidenceForm}}" class="ghost-btn action-btn" bindtap="openEvidenceForm">+ 提交文字证据</button>
+      <button wx:if="{{canSubmitEvidence}}" class="ghost-btn action-btn" bindtap="openEvidencePage">+ 提交证据</button>
 
       <!-- 参与者：待评价可评价他人 -->
       <view wx:if="{{canEvaluate}}" class="eval-deadline-hint">评价窗口：{{evalDeadlineText}}</view>
@@ -85,21 +85,6 @@
     <block wx:for="{{evidenceList}}" wx:key="index">
       <view class="evidence-item">{{item.submitterName}}：{{item.value}}</view>
     </block>
-
-    <view wx:if="{{showEvidenceForm}}" class="evidence-form">
-      <view class="label">证据内容</view>
-      <textarea
-        class="evidence-textarea"
-        placeholder="描述你的完成情况..."
-        placeholder-class="placeholder"
-        bindinput="onEvidenceInput"
-        value="{{evidenceInput}}"
-      />
-      <view class="evidence-form-btns">
-        <button class="ghost-btn evidence-btn" bindtap="closeEvidenceForm">取消</button>
-        <button class="primary-btn evidence-btn" bindtap="submitEvidence">提交</button>
-      </view>
-    </view>
 
     <!-- 人员选择弹层 -->
     <view wx:if="{{showPersonPicker}}" class="person-picker-overlay">

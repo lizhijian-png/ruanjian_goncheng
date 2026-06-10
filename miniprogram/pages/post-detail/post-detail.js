@@ -30,9 +30,6 @@ Page({
     canEvaluate: false,
     completionStatusList: [],
     evalDeadlineText: '',
-    // 证据表单
-    showEvidenceForm: false,
-    evidenceInput: '',
     // 人员选择弹层
     showPersonPicker: false,
     evalTargets: [],
@@ -60,8 +57,9 @@ Page({
   },
   onShow() {
     if (this._firstShow) { this._firstShow = false; return; }
-    if (this._returnFromEvaluate && this.data.post) {
+    if ((this._returnFromEvaluate || this._returnFromEvidence) && this.data.post) {
       this._returnFromEvaluate = false;
+      this._returnFromEvidence = false;
       this._loadDetail(this.data.post.id);
     }
   },
@@ -224,31 +222,11 @@ Page({
       }
     });
   },
-  openEvidenceForm() {
-    this.setData({ showEvidenceForm: true, evidenceInput: '' });
-  },
-  closeEvidenceForm() {
-    this.setData({ showEvidenceForm: false, evidenceInput: '' });
-  },
-  onEvidenceInput(e) {
-    this.setData({ evidenceInput: e.detail.value });
-  },
-  async submitEvidence() {
-    const { post, currentUserId, evidenceInput } = this.data;
-    if (!String(evidenceInput).trim()) {
-      wx.showToast({ title: '请填写证据内容', icon: 'none' });
-      return;
-    }
-    const userInfo = getApp().globalData.userInfo || wx.getStorageSync('userInfo');
-    const submitterName = (userInfo && userInfo.nickname) ? userInfo.nickname : currentUserId;
-    try {
-      await api.submitEvidence(post.id, currentUserId, submitterName, evidenceInput);
-      wx.showToast({ title: '证据已提交', icon: 'success' });
-      this.setData({ showEvidenceForm: false, evidenceInput: '' });
-      await this._loadDetail(post.id);
-    } catch (error) {
-      wx.showToast({ title: error.message || '提交失败', icon: 'none' });
-    }
+  openEvidencePage() {
+    this._returnFromEvidence = true;
+    wx.navigateTo({
+      url: `/pages/submit-evidence/submit-evidence?postId=${this.data.post.id}`
+    });
   },
   openPersonPicker() {
     this.setData({ showPersonPicker: true });

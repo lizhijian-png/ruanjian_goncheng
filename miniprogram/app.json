@@ -8,7 +8,8 @@
     "pages/post-detail/post-detail",
     "pages/score-history/score-history",
     "pages/admin/admin",
-    "pages/evaluate/evaluate"
+    "pages/evaluate/evaluate",
+    "pages/submit-evidence/submit-evidence"
   ],
   "tabBar": {
     "color": "#8b6f88",
