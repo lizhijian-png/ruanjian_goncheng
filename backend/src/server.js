@@ -19,7 +19,9 @@ function createId(prefix) {
 }
 
 const uploadsDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+fs.mkdirSync(uploadsDir, { recursive: true });
+
+const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsDir),
@@ -28,7 +30,17 @@ const storage = multer.diskStorage({
     cb(null, `${createId('img')}${ext}`);
   }
 });
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_MIME.has(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(Object.assign(new Error('只允许上传图片'), { status: 400 }));
+    }
+  }
+});
 
 async function insertPointLog(connection, userId, delta, reason) {
   const [[user]] = await connection.execute('SELECT points FROM users WHERE id = ?', [userId]);
@@ -670,8 +682,12 @@ app.post('/api/posts/:id/quit', async (req, res, next) => {
   }
 });
 
-app.post('/api/upload', upload.single('file'), (req, res, next) => {
+app.post('/api/upload', upload.single('file'), async (req, res, next) => {
   try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ message: '缺少 userId' });
+    const userRows = await query('SELECT id FROM users WHERE id = ?', [userId]);
+    if (userRows.length === 0) return res.status(403).json({ message: '用户不存在' });
     if (!req.file) return res.status(400).json({ message: '未收到文件' });
     res.json({ url: `/uploads/${req.file.filename}` });
   } catch (error) {
