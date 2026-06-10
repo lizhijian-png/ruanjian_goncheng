@@ -3,16 +3,32 @@ const cors = require('cors');
 const axios = require('axios');
 const { initDb, mapPost, query, withTransaction, getUserRank } = require('./db');
 const { generateAiComment } = require('./ai');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 function createId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
+
+const uploadsDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `${createId('img')}${ext}`);
+  }
+});
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 async function insertPointLog(connection, userId, delta, reason) {
   const [[user]] = await connection.execute('SELECT points FROM users WHERE id = ?', [userId]);
@@ -649,6 +665,15 @@ app.post('/api/posts/:id/quit', async (req, res, next) => {
     const fresh = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     const buddies = await query('SELECT userId, nickname, joinedAt, evaluated FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC', [req.params.id]);
     res.json({ post: mapPost(fresh[0]), buddies });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/upload', upload.single('file'), (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: '未收到文件' });
+    res.json({ url: `/uploads/${req.file.filename}` });
   } catch (error) {
     next(error);
   }
