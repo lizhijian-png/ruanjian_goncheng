@@ -71,8 +71,8 @@ function completePost(id, userId) {
   return request({ url: `/api/posts/${id}/complete`, method: 'POST', data: { userId } });
 }
 
-function submitEvidence(postId, userId, submitterName, content) {
-  return request({ url: `/api/posts/${postId}/evidence`, method: 'POST', data: { userId, submitterName, content } });
+function submitEvidence(postId, userId, submitterName, content, imageUrls = []) {
+  return request({ url: `/api/posts/${postId}/evidence`, method: 'POST', data: { userId, submitterName, content, imageUrls } });
 }
 
 function joinPost(id, userId) {
