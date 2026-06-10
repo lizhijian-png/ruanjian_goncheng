@@ -4,6 +4,7 @@ Page({
   data: {
     postId: '',
     postTitle: '',
+    titleLoading: true,
     currentUserId: '',
     submitterName: '',
     evidenceText: '',
@@ -13,6 +14,11 @@ Page({
 
   async onLoad(options) {
     const { postId } = options;
+    if (!postId) {
+      wx.showToast({ title: '参数错误', icon: 'none' });
+      wx.navigateBack();
+      return;
+    }
     const app = getApp();
     const userInfo = app.globalData.userInfo || wx.getStorageSync('userInfo');
     const currentUserId = userInfo ? userInfo.id : '';
@@ -25,9 +31,11 @@ Page({
       this.setData({
         postTitle: detail.post ? detail.post.title : '',
         evidenceText: myEvidence ? myEvidence.value : '',
-        imageUrls: myEvidence ? (myEvidence.imageUrls || []) : []
+        imageUrls: myEvidence ? (myEvidence.imageUrls || []) : [],
+        titleLoading: false
       });
     } catch (err) {
+      this.setData({ titleLoading: false });
       wx.showToast({ title: err.message || '加载失败', icon: 'none' });
     }
   },

@@ -1,6 +1,6 @@
 <view class="container">
   <view class="card">
-    <view class="card-title">{{postTitle}}</view>
+    <view class="card-title">{{titleLoading ? '加载中...' : postTitle}}</view>
 
     <view class="label">证据说明</view>
     <textarea
