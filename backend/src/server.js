@@ -83,13 +83,8 @@ async function syncPostStatus(postId) {
 }
 
 async function settlePost(postId) {
-  const postRows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
-  const post = postRows[0];
-  if (!post) return;
-
-  const buddyRows = await query('SELECT userId FROM post_buddies WHERE postId = ?', [postId]);
-  const participants = [post.publisherId, ...buddyRows.map(b => b.userId)];
-  const N = participants.length;
+  let participants = [];
+  let settled = false;
 
   await withTransaction(async (connection) => {
     const [result] = await connection.execute(
@@ -97,6 +92,14 @@ async function settlePost(postId) {
       [postId]
     );
     if (result.affectedRows === 0) return;
+
+    const [[post]] = await connection.execute('SELECT * FROM posts WHERE id = ?', [postId]);
+    const [buddyRows] = await connection.execute(
+      'SELECT userId FROM post_buddies WHERE postId = ?',
+      [postId]
+    );
+    participants = [post.publisherId, ...buddyRows.map(b => b.userId)];
+    const N = participants.length;
 
     for (const targetId of participants) {
       const [[{ rejectCount }]] = await connection.execute(
@@ -127,7 +130,11 @@ async function settlePost(postId) {
         await insertPointLog(connection, targetId, post.reward || 0, `完成任务《${post.title}》`);
       }
     }
+
+    settled = true;
   });
+
+  if (!settled) return;
 
   for (const targetId of participants) {
     await recalcCompletionRate(targetId);
