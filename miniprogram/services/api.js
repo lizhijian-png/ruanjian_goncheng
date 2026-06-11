@@ -177,6 +177,10 @@ function updatePostAuditStatus(id, auditStatus) {
   return request({ url: `/api/admin/posts/${id}/audit-status`, method: 'PUT', data: { auditStatus } });
 }
 
+function getChatHistory(postId, userId) {
+  return request({ url: `/api/chat/${postId}/history?userId=${encodeURIComponent(userId)}` });
+}
+
 module.exports = {
   login,
   bind,
@@ -205,5 +209,6 @@ module.exports = {
   deleteAnnotation,
   adminLogin,
   getAdminFeed,
-  updatePostAuditStatus
+  updatePostAuditStatus,
+  getChatHistory
 };
