@@ -336,6 +336,18 @@ async function createTables() {
   if (publisherCompleteCol.length === 0) {
     await query(`ALTER TABLE posts ADD COLUMN publisherComplete TINYINT(1) DEFAULT NULL`);
   }
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id          INT AUTO_INCREMENT PRIMARY KEY,
+      postId      VARCHAR(64) NOT NULL,
+      senderId    VARCHAR(64) NOT NULL,
+      senderName  VARCHAR(100) NOT NULL,
+      content     TEXT NOT NULL,
+      createdAt   DATETIME DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_messages_postId_createdAt (postId, createdAt)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
 }
 
 async function getUserRank(userId) {
@@ -356,11 +368,35 @@ async function initDb() {
   await createTables();
 }
 
+async function insertMessage(postId, senderId, senderName, content) {
+  const [result] = await createPool().execute(
+    'INSERT INTO messages (postId, senderId, senderName, content) VALUES (?, ?, ?, ?)',
+    [postId, senderId, senderName, content]
+  );
+  return result.insertId;
+}
+
+async function getRecentMessages(postId, limit = 50) {
+  const rows = await query(
+    `SELECT id, senderId, senderName, content, createdAt
+     FROM messages WHERE postId = ? ORDER BY createdAt ASC LIMIT ?`,
+    [postId, limit]
+  );
+  return rows;
+}
+
+async function deleteMessagesByPost(postId) {
+  await query('DELETE FROM messages WHERE postId = ?', [postId]);
+}
+
 module.exports = {
   dbConfig,
   initDb,
   mapPost,
   query,
   withTransaction,
-  getUserRank
+  getUserRank,
+  insertMessage,
+  getRecentMessages,
+  deleteMessagesByPost
 };
