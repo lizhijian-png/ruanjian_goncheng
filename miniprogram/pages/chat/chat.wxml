@@ -1,0 +1,38 @@
+<view class="container">
+  <scroll-view
+    class="message-list"
+    scroll-y
+    scroll-into-view="{{scrollTarget}}"
+    scroll-with-animation
+  >
+    <view wx:if="{{messages.length === 0 && !isClosed}}" class="empty-hint">暂无消息，发送第一条吧</view>
+
+    <block wx:for="{{messages}}" wx:key="id">
+      <view class="msg-row {{item.senderId === currentUserId ? 'msg-row-self' : ''}}">
+        <view class="bubble {{item.senderId === currentUserId ? 'bubble-self' : 'bubble-other'}}">
+          <view wx:if="{{item.senderId !== currentUserId}}" class="sender-name">{{item.senderName}}</view>
+          <view class="msg-content">{{item.content}}</view>
+          <view class="msg-time">{{item.timeStr}}</view>
+        </view>
+      </view>
+    </block>
+
+    <view id="msg-bottom" />
+  </scroll-view>
+
+  <view wx:if="{{isClosed}}" class="closed-banner">聊天室已关闭</view>
+
+  <view class="input-bar" wx:if="{{!isClosed}}">
+    <input
+      class="msg-input"
+      value="{{inputText}}"
+      bindinput="onInput"
+      placeholder="输入文字（最多500字）"
+      placeholder-class="placeholder"
+      maxlength="500"
+      confirm-type="send"
+      bindconfirm="sendMessage"
+    />
+    <button class="send-btn" bindtap="sendMessage">发送</button>
+  </view>
+</view>
