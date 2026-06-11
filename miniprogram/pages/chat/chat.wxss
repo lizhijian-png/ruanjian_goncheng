@@ -1,12 +1,18 @@
+page {
+  height: 100%;
+}
+
 .container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
+  overflow: hidden;
   background: #fffaf4;
 }
 
 .message-list {
   flex: 1;
+  height: 0;
   overflow: hidden;
   padding: 16rpx 24rpx;
   box-sizing: border-box;
@@ -77,6 +83,7 @@
 }
 
 .input-bar {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   padding: 16rpx 24rpx;
