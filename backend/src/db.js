@@ -377,10 +377,11 @@ async function insertMessage(postId, senderId, senderName, content) {
 }
 
 async function getRecentMessages(postId, limit = 50) {
+  const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
   const rows = await query(
     `SELECT id, senderId, senderName, content, createdAt
-     FROM messages WHERE postId = ? ORDER BY createdAt ASC LIMIT ?`,
-    [postId, limit]
+     FROM messages WHERE postId = ? ORDER BY createdAt ASC LIMIT ${safeLimit}`,
+    [postId]
   );
   return rows;
 }
