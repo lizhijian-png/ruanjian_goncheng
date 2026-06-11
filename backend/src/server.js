@@ -6,6 +6,9 @@ const { generateAiComment } = require('./ai');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
+const { createChatServer } = require('./chat');
+const { getRecentMessages, deleteMessagesByPost } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -201,6 +204,27 @@ function calcRecommendedScore(post, publisherUser, preferenceMap) {
 
 app.get('/api/health', (_req, res) => {
   res.json({ success: true, message: 'backend is running' });
+});
+
+app.get('/api/chat/:postId/history', async (req, res, next) => {
+  try {
+    const { postId } = req.params;
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ message: '缺少 userId' });
+
+    const postRows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
+    const post = postRows[0];
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
+    if (!post.partnerChat) return res.status(403).json({ message: '该任务未开启聊天' });
+
+    const ok = await isParticipant(postId, userId, post);
+    if (!ok) return res.status(403).json({ message: '只有参与者可以查看聊天记录' });
+
+    const messages = await getRecentMessages(postId, 50);
+    res.json({ messages });
+  } catch (error) {
+    next(error);
+  }
 });
 
 async function resolveOpenid(code, devFallbackKey) {
@@ -796,6 +820,8 @@ app.post('/api/posts/:id/complete', async (req, res, next) => {
     if (userId && current.publisherId !== userId) return res.status(403).json({ message: '只有发布者可以标记完成' });
 
     await query('UPDATE posts SET status = ? WHERE id = ?', ['待评价', req.params.id]);
+    await deleteMessagesByPost(req.params.id);
+    req.app.locals.chatServer.closeRoom(req.params.id, 'task_completed');
     const freshRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     res.json(mapPost(freshRows[0]));
   } catch (error) {
@@ -943,10 +969,7 @@ app.post('/api/posts/:id/abandon', async (req, res, next) => {
     if (post.status !== '招募中' && post.status !== '进行中') return res.status(400).json({ message: '当前状态无法放弃' });
 
     await withTransaction(async (connection) => {
-      await connection.execute(
-        'UPDATE posts SET status = ? WHERE id = ?',
-        ['已放弃', req.params.id]
-      );
+      await connection.execute('UPDATE posts SET status = ? WHERE id = ?', ['已放弃', req.params.id]);
       await connection.execute(
         'UPDATE users SET points = GREATEST(0, points - ?) WHERE id = ?',
         [post.penalty, post.publisherId]
@@ -955,6 +978,8 @@ app.post('/api/posts/:id/abandon', async (req, res, next) => {
     });
 
     await recalcCompletionRate(post.publisherId);
+    await deleteMessagesByPost(req.params.id);
+    req.app.locals.chatServer.closeRoom(req.params.id, 'task_abandoned');
     const freshRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     res.json(mapPost(freshRows[0]));
   } catch (error) {
@@ -1224,7 +1249,10 @@ app.use((err, _req, res, _next) => {
 async function startServer() {
   try {
     await initDb();
-    app.listen(PORT, () => {
+    const httpServer = http.createServer(app);
+    const chatServer = createChatServer(httpServer);
+    app.locals.chatServer = chatServer;
+    httpServer.listen(PORT, () => {
       console.log(`Task Buddy backend listening on http://localhost:${PORT}`);
     });
   } catch (error) {
