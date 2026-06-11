@@ -87,6 +87,8 @@ page {
   display: flex;
   align-items: center;
   padding: 16rpx 24rpx;
+  padding-bottom: calc(16rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(16rpx + env(safe-area-inset-bottom));
   background: #fff;
   border-top: 1rpx solid #f0e8e0;
 }
