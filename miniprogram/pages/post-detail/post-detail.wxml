@@ -77,6 +77,12 @@
       <!-- 参与者：待评价可评价他人 -->
       <view wx:if="{{canEvaluate}}" class="eval-deadline-hint">评价窗口：{{evalDeadlineText}}</view>
       <button wx:if="{{canEvaluate}}" class="primary-btn action-btn" bindtap="openPersonPicker">评价</button>
+      <!-- 聊天室入口 -->
+      <button
+        wx:if="{{canOpenChat}}"
+        class="ghost-btn action-btn"
+        bindtap="openChat"
+      >进入聊天室</button>
     </view>
 
     <!-- 完成证据 -->

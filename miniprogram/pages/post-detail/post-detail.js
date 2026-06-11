@@ -45,7 +45,8 @@ Page({
     pendingY: 0,
     showAnnoDetail: false,
     activeAnno: null,
-    canDeleteActive: false
+    canDeleteActive: false,
+    canOpenChat: false,
   },
   async onLoad(options) {
     this._firstShow = true;
@@ -80,6 +81,10 @@ Page({
       const hasRequested = completionRequests.includes(currentUserId);
       const canRequestComplete = isBuddy && post.status === '进行中' && !hasRequested;
       const isParticipant = isPublisher || isBuddy;
+      const canOpenChat = post.partnerChat &&
+        isParticipant &&
+        post.status !== '已完成' &&
+        post.status !== '已放弃';
       const canSubmitEvidence = isParticipant && post.status === '待评价';
 
       let evalDeadlineText = '';
@@ -120,7 +125,8 @@ Page({
         canJoin, canStart, canMarkDone, canAbandon,
         canQuit, canRequestComplete, hasRequested,
         canSubmitEvidence, canEvaluate,
-        completionStatusList, evalDeadlineText, evalTargets, isParticipant: isPublisher || isBuddy
+        completionStatusList, evalDeadlineText, evalTargets, isParticipant: isPublisher || isBuddy,
+        canOpenChat
       });
       try {
         const annoRes = await api.getAnnotations(post.id);
@@ -328,5 +334,10 @@ Page({
     } catch (error) {
       wx.showToast({ title: error.message || '删除失败', icon: 'none' });
     }
+  },
+  openChat() {
+    wx.navigateTo({
+      url: `/pages/chat/chat?postId=${this.data.post.id}`
+    });
   },
 });
