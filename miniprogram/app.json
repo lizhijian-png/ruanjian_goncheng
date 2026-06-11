@@ -9,7 +9,8 @@
     "pages/score-history/score-history",
     "pages/admin/admin",
     "pages/evaluate/evaluate",
-    "pages/submit-evidence/submit-evidence"
+    "pages/submit-evidence/submit-evidence",
+    "pages/chat/chat"
   ],
   "tabBar": {
     "color": "#8b6f88",
