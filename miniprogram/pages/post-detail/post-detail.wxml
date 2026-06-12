@@ -165,6 +165,16 @@
       <view class="anno-detail-author">{{activeAnno.nickname}}</view>
       <view class="anno-detail-content">{{activeAnno.content}}</view>
       <view class="muted">{{activeAnno.createdAt}}</view>
+      <view wx:if="{{canDeleteActive}}" class="anno-rotate-row">
+        <text class="anno-rotate-label">旋转 {{activeRotate}}°</text>
+        <slider
+          class="anno-rotate-slider"
+          min="-180" max="180" value="{{activeRotate}}"
+          block-size="20"
+          bindchanging="onRotateChanging"
+          bindchange="onRotateChange"
+        />
+      </view>
       <view class="evidence-form-btns">
         <button class="ghost-btn evidence-btn" bindtap="closeAnnoDetail">关闭</button>
         <button

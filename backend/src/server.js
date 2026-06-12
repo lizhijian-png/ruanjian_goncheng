@@ -1244,7 +1244,7 @@ app.delete('/api/posts/:id/annotations/:annId', async (req, res, next) => {
 app.patch('/api/posts/:id/annotations/:annId', async (req, res, next) => {
   try {
     const { id: postId, annId } = req.params;
-    const { userId, x, y } = req.body;
+    const { userId, x, y, rotate } = req.body;
 
     const annRows = await query('SELECT * FROM annotations WHERE id = ? AND postId = ?', [annId, postId]);
     const ann = annRows[0];
@@ -1255,15 +1255,30 @@ app.patch('/api/posts/:id/annotations/:annId', async (req, res, next) => {
     const isOwner = ann.userId === userId;
     const isPublisher = post && post.publisherId === userId;
     if (!isOwner && !isPublisher) {
-      return res.status(403).json({ message: '无权移动该批注' });
+      return res.status(403).json({ message: '无权修改该批注' });
     }
 
-    const nx = Number(x), ny = Number(y);
+    // 坐标:未提供则保持原值
+    const nx = x === undefined ? Number(ann.x) : Number(x);
+    const ny = y === undefined ? Number(ann.y) : Number(y);
     if (!(nx >= 0 && nx <= 100 && ny >= 0 && ny <= 100)) {
       return res.status(400).json({ message: '坐标超出范围' });
     }
 
-    await query('UPDATE annotations SET x = ?, y = ? WHERE id = ?', [nx, ny, annId]);
+    // 旋转角:可选,合并进 style JSON
+    let styleStr = ann.style;
+    if (rotate !== undefined) {
+      const r = Number(rotate);
+      if (!(r >= -180 && r <= 180)) {
+        return res.status(400).json({ message: '旋转角度超出范围' });
+      }
+      let style = {};
+      try { style = JSON.parse(ann.style || '{}'); } catch (e) { style = {}; }
+      style.rotate = r;
+      styleStr = JSON.stringify(style);
+    }
+
+    await query('UPDATE annotations SET x = ?, y = ?, style = ? WHERE id = ?', [nx, ny, styleStr, annId]);
 
     const rows = await query(
       `SELECT id, userId, nickname, type, content, style, x, y, createdAt

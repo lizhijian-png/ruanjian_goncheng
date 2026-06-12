@@ -297,3 +297,13 @@
   color: #5a4a52;
   margin-bottom: 10rpx;
 }
+.anno-rotate-row {
+  margin: 16rpx 0;
+}
+.anno-rotate-label {
+  font-size: 26rpx;
+  color: #7a5a00;
+}
+.anno-rotate-slider {
+  margin: 8rpx 0;
+}

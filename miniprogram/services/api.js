@@ -189,6 +189,14 @@ function updateAnnotationPosition(postId, annId, userId, x, y) {
   });
 }
 
+function updateAnnotationRotate(postId, annId, userId, rotate) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}`,
+    method: 'PATCH',
+    data: { userId, rotate }
+  });
+}
+
 module.exports = {
   login,
   bind,
@@ -219,5 +227,6 @@ module.exports = {
   getAdminFeed,
   updatePostAuditStatus,
   getChatHistory,
-  updateAnnotationPosition
+  updateAnnotationPosition,
+  updateAnnotationRotate
 };

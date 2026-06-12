@@ -48,6 +48,7 @@ Page({
     showAnnoDetail: false,
     activeAnno: null,
     canDeleteActive: false,
+    activeRotate: 0,
     canOpenChat: false,
   },
   async onLoad(options) {
@@ -319,7 +320,9 @@ Page({
     const anno = this.data.annotations.find(a => a.id === e.detail.id);
     if (!anno) return;
     const canDelete = anno.userId === this.data.currentUserId || this.data.isPublisher;
-    this.setData({ showAnnoDetail: true, activeAnno: anno, canDeleteActive: canDelete });
+    let rotate = 0;
+    try { rotate = Number(JSON.parse(anno.style || '{}').rotate) || 0; } catch (err) { rotate = 0; }
+    this.setData({ showAnnoDetail: true, activeAnno: anno, canDeleteActive: canDelete, activeRotate: rotate });
   },
   _measureCard() {
     const q = wx.createSelectorQuery().in(this);
@@ -355,6 +358,44 @@ Page({
   },
   closeAnnoDetail() {
     this.setData({ showAnnoDetail: false, activeAnno: null });
+  },
+  onRotateChanging(e) {
+    // 拖动中实时预览:更新弹层角度 + 批注层该条
+    const rotate = Number(e.detail.value);
+    const id = this.data.activeAnno && this.data.activeAnno.id;
+    if (!id) return;
+    const idx = this.data.annotations.findIndex(a => a.id === id);
+    if (idx < 0) return;
+    let style = {};
+    try { style = JSON.parse(this.data.annotations[idx].style || '{}'); } catch (err) { style = {}; }
+    style.rotate = rotate;
+    this.setData({
+      activeRotate: rotate,
+      [`annotations[${idx}].style`]: JSON.stringify(style)
+    });
+  },
+  async onRotateChange(e) {
+    // 松手保存
+    const rotate = Number(e.detail.value);
+    const { post, currentUserId, activeAnno } = this.data;
+    if (!activeAnno) return;
+    const id = activeAnno.id;
+    const idx = this.data.annotations.findIndex(a => a.id === id);
+    if (idx < 0) return;
+    const oldStyle = activeAnno.style;
+    try {
+      const res = await api.updateAnnotationRotate(post.id, id, currentUserId, rotate);
+      this.setData({
+        [`annotations[${idx}]`]: res.annotation,
+        activeAnno: res.annotation
+      });
+    } catch (error) {
+      this.setData({ [`annotations[${idx}].style`]: oldStyle, activeRotate: this._parseRotate(oldStyle) });
+      wx.showToast({ title: error.message || '旋转失败', icon: 'none' });
+    }
+  },
+  _parseRotate(styleStr) {
+    try { return Number(JSON.parse(styleStr || '{}').rotate) || 0; } catch (e) { return 0; }
   },
   async deleteActiveAnnotation() {
     const { post, currentUserId, activeAnno } = this.data;
