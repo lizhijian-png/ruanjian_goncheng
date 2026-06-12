@@ -193,6 +193,7 @@ async function createTables() {
       submitterName VARCHAR(100) NOT NULL DEFAULT '',
       type VARCHAR(50) NOT NULL,
       value TEXT NOT NULL,
+      imageUrls TEXT NULL,
       createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE KEY uq_evidence_post_user (postId, submitterId),
       CONSTRAINT fk_evidences_post FOREIGN KEY (postId) REFERENCES posts(id) ON DELETE CASCADE
@@ -230,6 +231,11 @@ async function createTables() {
         ADD COLUMN submitterName VARCHAR(100) NOT NULL DEFAULT '' AFTER submitterId
     `);
   }
+  const evidenceImageUrlsCol = await query(`SHOW COLUMNS FROM evidences LIKE 'imageUrls'`);
+  if (evidenceImageUrlsCol.length === 0) {
+    await query(`ALTER TABLE evidences ADD COLUMN imageUrls TEXT NULL AFTER value`);
+  }
+
   const evidenceUniqueKey = await query(`
     SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS
     WHERE TABLE_SCHEMA = DATABASE()
