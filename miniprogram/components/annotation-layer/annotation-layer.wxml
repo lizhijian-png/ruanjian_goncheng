@@ -2,9 +2,11 @@
   <view
     wx:for="{{items}}"
     wx:key="id"
-    class="anno {{item.type === 'stamp' ? 'anno-stamp' : 'anno-text'}}"
+    class="anno {{item.type === 'stamp' ? 'anno-stamp' : 'anno-text'}} {{item.dragging ? 'anno-dragging' : ''}}"
     style="left:{{item.x}}%;top:{{item.y}}%;{{item.cssStyle}}"
     data-id="{{item.id}}"
-    catchtap="onTapAnnotation"
+    catchtouchstart="onTouchStart"
+    catchtouchmove="onTouchMove"
+    catchtouchend="onTouchEnd"
   >{{item.content}}</view>
 </view>

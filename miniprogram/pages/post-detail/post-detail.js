@@ -35,6 +35,8 @@ Page({
     evalTargets: [],
     // 批注
     annotations: [],
+    cardWidth: 0,
+    cardHeight: 0,
     isParticipant: false,
     placingMode: false,
     placingKind: '',
@@ -135,6 +137,7 @@ Page({
         this.setData({ annotations: [] });
         wx.showToast({ title: '批注加载失败', icon: 'none' });
       }
+      this._measureCard();
     } catch (error) {
       wx.showToast({ title: error.message || '加载详情失败', icon: 'none' });
     }
@@ -317,6 +320,38 @@ Page({
     if (!anno) return;
     const canDelete = anno.userId === this.data.currentUserId || this.data.isPublisher;
     this.setData({ showAnnoDetail: true, activeAnno: anno, canDeleteActive: canDelete });
+  },
+  _measureCard() {
+    const q = wx.createSelectorQuery().in(this);
+    q.select('.detail-card').boundingClientRect();
+    q.exec((res) => {
+      const rect = res[0];
+      if (rect) {
+        this.setData({ cardWidth: rect.width, cardHeight: rect.height });
+      }
+    });
+  },
+  async onAnnotationDragEnd(e) {
+    const { id, x, y } = e.detail;
+    const { post, currentUserId } = this.data;
+    const idx = this.data.annotations.findIndex(a => a.id === id);
+    if (idx < 0) return;
+    const oldX = this.data.annotations[idx].x;
+    const oldY = this.data.annotations[idx].y;
+    this.setData({
+      [`annotations[${idx}].x`]: x,
+      [`annotations[${idx}].y`]: y
+    });
+    try {
+      const res = await api.updateAnnotationPosition(post.id, id, currentUserId, x, y);
+      this.setData({ [`annotations[${idx}]`]: res.annotation });
+    } catch (error) {
+      this.setData({
+        [`annotations[${idx}].x`]: oldX,
+        [`annotations[${idx}].y`]: oldY
+      });
+      wx.showToast({ title: error.message || '移动失败', icon: 'none' });
+    }
   },
   closeAnnoDetail() {
     this.setData({ showAnnoDetail: false, activeAnno: null });

@@ -181,6 +181,14 @@ function getChatHistory(postId, userId) {
   return request({ url: `/api/chat/${postId}/history?userId=${encodeURIComponent(userId)}` });
 }
 
+function updateAnnotationPosition(postId, annId, userId, x, y) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}`,
+    method: 'PATCH',
+    data: { userId, x, y }
+  });
+}
+
 module.exports = {
   login,
   bind,
@@ -210,5 +218,6 @@ module.exports = {
   adminLogin,
   getAdminFeed,
   updatePostAuditStatus,
-  getChatHistory
+  getChatHistory,
+  updateAnnotationPosition
 };

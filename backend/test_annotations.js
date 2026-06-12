@@ -32,6 +32,11 @@ async function run() {
     const [list] = await pool.execute('SELECT id FROM annotations WHERE postId = ?', [post.id]);
     ok(list.some(r => r.id === annId), '按帖子查到批注');
 
+    // 4.5 更新坐标
+    await pool.execute('UPDATE annotations SET x = ?, y = ? WHERE id = ?', [12.5, 80, annId]);
+    const [[moved]] = await pool.execute('SELECT x, y FROM annotations WHERE id = ?', [annId]);
+    ok(Number(moved.x) === 12.5 && Number(moved.y) === 80, '坐标更新成功');
+
     // 5. 删除
     await pool.execute('DELETE FROM annotations WHERE id = ?', [annId]);
     const [after] = await pool.execute('SELECT id FROM annotations WHERE id = ?', [annId]);

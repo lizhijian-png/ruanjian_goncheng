@@ -17,7 +17,12 @@
     <view class="detail-content">{{post.content}}</view>
     <annotation-layer
       annotations="{{annotations}}"
+      currentUserId="{{currentUserId}}"
+      publisherId="{{post.publisherId}}"
+      cardWidth="{{cardWidth}}"
+      cardHeight="{{cardHeight}}"
       bind:tapannotation="onTapAnnotation"
+      bind:dragend="onAnnotationDragEnd"
     />
 
     <view class="detail-grid">

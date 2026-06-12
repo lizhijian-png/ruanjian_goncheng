@@ -1241,6 +1241,41 @@ app.delete('/api/posts/:id/annotations/:annId', async (req, res, next) => {
   }
 });
 
+app.patch('/api/posts/:id/annotations/:annId', async (req, res, next) => {
+  try {
+    const { id: postId, annId } = req.params;
+    const { userId, x, y } = req.body;
+
+    const annRows = await query('SELECT * FROM annotations WHERE id = ? AND postId = ?', [annId, postId]);
+    const ann = annRows[0];
+    if (!ann) return res.status(404).json({ message: '批注不存在' });
+
+    const postRows = await query('SELECT publisherId FROM posts WHERE id = ?', [postId]);
+    const post = postRows[0];
+    const isOwner = ann.userId === userId;
+    const isPublisher = post && post.publisherId === userId;
+    if (!isOwner && !isPublisher) {
+      return res.status(403).json({ message: '无权移动该批注' });
+    }
+
+    const nx = Number(x), ny = Number(y);
+    if (!(nx >= 0 && nx <= 100 && ny >= 0 && ny <= 100)) {
+      return res.status(400).json({ message: '坐标超出范围' });
+    }
+
+    await query('UPDATE annotations SET x = ?, y = ? WHERE id = ?', [nx, ny, annId]);
+
+    const rows = await query(
+      `SELECT id, userId, nickname, type, content, style, x, y, createdAt
+       FROM annotations WHERE id = ?`,
+      [annId]
+    );
+    res.json({ success: true, annotation: rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ message: err.message || '服务器内部错误' });
