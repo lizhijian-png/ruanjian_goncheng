@@ -1244,7 +1244,7 @@ app.delete('/api/posts/:id/annotations/:annId', async (req, res, next) => {
 app.patch('/api/posts/:id/annotations/:annId', async (req, res, next) => {
   try {
     const { id: postId, annId } = req.params;
-    const { userId, x, y, rotate } = req.body;
+    const { userId, x, y, rotate, scale } = req.body;
 
     const annRows = await query('SELECT * FROM annotations WHERE id = ? AND postId = ?', [annId, postId]);
     const ann = annRows[0];
@@ -1265,16 +1265,25 @@ app.patch('/api/posts/:id/annotations/:annId', async (req, res, next) => {
       return res.status(400).json({ message: '坐标超出范围' });
     }
 
-    // 旋转角:可选,合并进 style JSON
+    // 旋转角 / 缩放:可选,合并进 style JSON
     let styleStr = ann.style;
-    if (rotate !== undefined) {
-      const r = Number(rotate);
-      if (!(r >= -180 && r <= 180)) {
-        return res.status(400).json({ message: '旋转角度超出范围' });
-      }
+    if (rotate !== undefined || scale !== undefined) {
       let style = {};
       try { style = JSON.parse(ann.style || '{}'); } catch (e) { style = {}; }
-      style.rotate = r;
+      if (rotate !== undefined) {
+        const r = Number(rotate);
+        if (!(r >= -180 && r <= 180)) {
+          return res.status(400).json({ message: '旋转角度超出范围' });
+        }
+        style.rotate = r;
+      }
+      if (scale !== undefined) {
+        const s = Number(scale);
+        if (!(s >= 0.5 && s <= 2)) {
+          return res.status(400).json({ message: '缩放比例超出范围' });
+        }
+        style.scale = s;
+      }
       styleStr = JSON.stringify(style);
     }
 

@@ -35,6 +35,7 @@ Page({
     evalTargets: [],
     // 批注
     annotations: [],
+    annoVisible: true,
     cardWidth: 0,
     cardHeight: 0,
     isParticipant: false,
@@ -49,6 +50,7 @@ Page({
     activeAnno: null,
     canDeleteActive: false,
     activeRotate: 0,
+    activeScale: 1,
     canOpenChat: false,
   },
   async onLoad(options) {
@@ -320,9 +322,13 @@ Page({
     const anno = this.data.annotations.find(a => a.id === e.detail.id);
     if (!anno) return;
     const canDelete = anno.userId === this.data.currentUserId || this.data.isPublisher;
-    let rotate = 0;
-    try { rotate = Number(JSON.parse(anno.style || '{}').rotate) || 0; } catch (err) { rotate = 0; }
-    this.setData({ showAnnoDetail: true, activeAnno: anno, canDeleteActive: canDelete, activeRotate: rotate });
+    let rotate = 0, scale = 1;
+    try {
+      const st = JSON.parse(anno.style || '{}');
+      rotate = Number(st.rotate) || 0;
+      scale = Number(st.scale) || 1;
+    } catch (err) { rotate = 0; scale = 1; }
+    this.setData({ showAnnoDetail: true, activeAnno: anno, canDeleteActive: canDelete, activeRotate: rotate, activeScale: scale });
   },
   _measureCard() {
     const q = wx.createSelectorQuery().in(this);
@@ -333,6 +339,9 @@ Page({
         this.setData({ cardWidth: rect.width, cardHeight: rect.height });
       }
     });
+  },
+  onToggleAnnoVisible() {
+    this.setData({ annoVisible: !this.data.annoVisible });
   },
   async onAnnotationDragEnd(e) {
     const { id, x, y } = e.detail;
@@ -396,6 +405,42 @@ Page({
   },
   _parseRotate(styleStr) {
     try { return Number(JSON.parse(styleStr || '{}').rotate) || 0; } catch (e) { return 0; }
+  },
+  onScaleChanging(e) {
+    const scale = Number(e.detail.value);
+    const id = this.data.activeAnno && this.data.activeAnno.id;
+    if (!id) return;
+    const idx = this.data.annotations.findIndex(a => a.id === id);
+    if (idx < 0) return;
+    let style = {};
+    try { style = JSON.parse(this.data.annotations[idx].style || '{}'); } catch (err) { style = {}; }
+    style.scale = scale;
+    this.setData({
+      activeScale: scale,
+      [`annotations[${idx}].style`]: JSON.stringify(style)
+    });
+  },
+  async onScaleChange(e) {
+    const scale = Number(e.detail.value);
+    const { post, currentUserId, activeAnno } = this.data;
+    if (!activeAnno) return;
+    const id = activeAnno.id;
+    const idx = this.data.annotations.findIndex(a => a.id === id);
+    if (idx < 0) return;
+    const oldStyle = activeAnno.style;
+    try {
+      const res = await api.updateAnnotationScale(post.id, id, currentUserId, scale);
+      this.setData({
+        [`annotations[${idx}]`]: res.annotation,
+        activeAnno: res.annotation
+      });
+    } catch (error) {
+      this.setData({ [`annotations[${idx}].style`]: oldStyle, activeScale: this._parseScale(oldStyle) });
+      wx.showToast({ title: error.message || '缩放失败', icon: 'none' });
+    }
+  },
+  _parseScale(styleStr) {
+    try { return Number(JSON.parse(styleStr || '{}').scale) || 1; } catch (e) { return 1; }
   },
   async deleteActiveAnnotation() {
     const { post, currentUserId, activeAnno } = this.data;

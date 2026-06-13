@@ -3,6 +3,10 @@ Component({
     emojis: {
       type: Array,
       value: ['🔥', '💪', '👍', '❤️', '😂', '⭐', '🎯', '✨']
+    },
+    annoVisible: {
+      type: Boolean,
+      value: true
     }
   },
   data: {
@@ -20,6 +24,9 @@ Component({
       const emoji = e.currentTarget.dataset.emoji;
       this.setData({ expanded: false });
       this.triggerEvent('pick', { kind: 'stamp', value: emoji });
+    },
+    toggleVisible() {
+      this.triggerEvent('togglevisible');
     }
   }
 });

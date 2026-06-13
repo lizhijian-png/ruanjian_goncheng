@@ -7,7 +7,8 @@ Component({
     currentUserId: { type: String, value: '' },
     publisherId: { type: String, value: '' },
     cardWidth: { type: Number, value: 0 },
-    cardHeight: { type: Number, value: 0 }
+    cardHeight: { type: Number, value: 0 },
+    visible: { type: Boolean, value: true }
   },
   data: { items: [] },
   observers: {
@@ -20,7 +21,10 @@ Component({
         if (style.fontSize) parts.push(`font-size:${style.fontSize}rpx`);
         if (style.fontWeight) parts.push(`font-weight:${style.fontWeight}`);
         if (style.bg) parts.push(`background:${style.bg}`);
-        if (style.rotate) parts.push(`transform:rotate(${style.rotate}deg)`);
+        const transforms = [];
+        if (style.rotate) transforms.push(`rotate(${style.rotate}deg)`);
+        if (style.scale && Number(style.scale) !== 1) transforms.push(`scale(${style.scale})`);
+        if (transforms.length) parts.push(`transform:${transforms.join(' ')}`);
         const canDrag = (a.userId === currentUserId) || (publisherId && publisherId === currentUserId);
         return { ...a, cssStyle: parts.join(';'), canDrag, dragging: false };
       });

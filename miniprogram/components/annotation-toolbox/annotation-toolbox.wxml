@@ -11,6 +11,7 @@
         bindtap="pickStamp"
       >{{item}}</view>
     </view>
+    <button class="visible-toggle-btn" bindtap="toggleVisible">{{annoVisible ? '🙈 隐藏批注' : '👁 显示批注'}}</button>
   </view>
   <view class="toolbox-fab" bindtap="toggle">{{expanded ? '✕' : '🧰'}}</view>
 </view>

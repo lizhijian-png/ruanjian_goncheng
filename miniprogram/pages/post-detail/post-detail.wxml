@@ -21,6 +21,7 @@
       publisherId="{{post.publisherId}}"
       cardWidth="{{cardWidth}}"
       cardHeight="{{cardHeight}}"
+      visible="{{annoVisible}}"
       bind:tapannotation="onTapAnnotation"
       bind:dragend="onAnnotationDragEnd"
     />
@@ -140,7 +141,9 @@
 
   <annotation-toolbox
     wx:if="{{isParticipant}}"
+    annoVisible="{{annoVisible}}"
     bind:pick="onToolPick"
+    bind:togglevisible="onToggleAnnoVisible"
   />
 
   <view wx:if="{{showTextInput}}" class="anno-input-overlay">
@@ -173,6 +176,16 @@
           block-size="20"
           bindchanging="onRotateChanging"
           bindchange="onRotateChange"
+        />
+      </view>
+      <view wx:if="{{canDeleteActive}}" class="anno-rotate-row">
+        <text class="anno-rotate-label">大小 {{activeScale}}x</text>
+        <slider
+          class="anno-rotate-slider"
+          min="0.5" max="2" step="0.1" value="{{activeScale}}"
+          block-size="20"
+          bindchanging="onScaleChanging"
+          bindchange="onScaleChange"
         />
       </view>
       <view class="evidence-form-btns">
