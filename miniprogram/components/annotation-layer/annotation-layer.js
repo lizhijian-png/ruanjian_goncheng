@@ -26,7 +26,19 @@ Component({
         if (style.scale && Number(style.scale) !== 1) transforms.push(`scale(${style.scale})`);
         if (transforms.length) parts.push(`transform:${transforms.join(' ')}`);
         const canDrag = (a.userId === currentUserId) || (publisherId && publisherId === currentUserId);
-        return { ...a, cssStyle: parts.join(';'), canDrag, dragging: false };
+        const likeCount = Number(a.likeCount) || 0;
+        const replyCount = Number(a.replyCount) || 0;
+        const badgeParts = [];
+        if (likeCount > 0) badgeParts.push(`❤${likeCount}`);
+        if (replyCount > 0) badgeParts.push(`💬${replyCount}`);
+        return {
+          ...a,
+          cssStyle: parts.join(';'),
+          canDrag,
+          dragging: false,
+          badge: badgeParts.join(' '),
+          hasBadge: badgeParts.length > 0
+        };
       });
       this.setData({ items });
     }

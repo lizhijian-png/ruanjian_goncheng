@@ -120,8 +120,9 @@ function getPointLogs(userId) {
   return request({ url: `/api/users/${userId}/point-logs` });
 }
 
-function getAnnotations(postId) {
-  return request({ url: `/api/posts/${postId}/annotations` });
+function getAnnotations(postId, viewerId) {
+  const q = viewerId ? `?viewerId=${encodeURIComponent(viewerId)}` : '';
+  return request({ url: `/api/posts/${postId}/annotations${q}` });
 }
 
 function createAnnotation(postId, payload) {
@@ -214,6 +215,34 @@ function updateAnnotationContent(postId, annId, userId, patch) {
   });
 }
 
+function toggleAnnotationLike(postId, annId, userId) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}/like`,
+    method: 'POST',
+    data: { userId }
+  });
+}
+
+function getAnnotationReplies(postId, annId) {
+  return request({ url: `/api/posts/${postId}/annotations/${annId}/replies` });
+}
+
+function createAnnotationReply(postId, annId, userId, content) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}/replies`,
+    method: 'POST',
+    data: { userId, content }
+  });
+}
+
+function deleteAnnotationReply(postId, annId, replyId, userId) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}/replies/${replyId}`,
+    method: 'DELETE',
+    data: { userId }
+  });
+}
+
 module.exports = {
   login,
   bind,
@@ -247,5 +276,9 @@ module.exports = {
   updateAnnotationPosition,
   updateAnnotationRotate,
   updateAnnotationScale,
-  updateAnnotationContent
+  updateAnnotationContent,
+  toggleAnnotationLike,
+  getAnnotationReplies,
+  createAnnotationReply,
+  deleteAnnotationReply
 };

@@ -220,6 +220,44 @@
           bindchange="onScaleChange"
         />
       </view>
+      <view class="anno-like-reply">
+        <view class="anno-like-row">
+          <view
+            class="anno-like-btn {{activeLiked ? 'liked' : ''}}"
+            catchtap="onToggleLike"
+          >{{activeLiked ? '❤️' : '🤍'}} 赞 {{activeLikeCount}}</view>
+          <text class="anno-reply-count">💬 {{activeReplies.length}} 条回复</text>
+        </view>
+
+        <view class="anno-reply-list">
+          <view wx:for="{{activeReplies}}" wx:key="id" class="anno-reply-item">
+            <view class="anno-reply-main">
+              <text class="anno-reply-author">{{item.nickname}}</text>
+              <text class="anno-reply-text">{{item.content}}</text>
+            </view>
+            <text
+              wx:if="{{item.userId === currentUserId || isPublisher}}"
+              class="anno-reply-del"
+              data-id="{{item.id}}"
+              catchtap="deleteReply"
+            >删除</text>
+          </view>
+        </view>
+
+        <view wx:if="{{isParticipant}}" class="anno-reply-input-row">
+          <input
+            class="anno-reply-input"
+            placeholder="写条回复..."
+            placeholder-class="placeholder"
+            value="{{replyInput}}"
+            bindinput="onReplyInput"
+            maxlength="200"
+            catchtap="noop"
+          />
+          <button class="primary-btn anno-reply-send" catchtap="submitReply" disabled="{{replyLoading}}">发送</button>
+        </view>
+      </view>
+
       <view class="evidence-form-btns">
         <button class="ghost-btn evidence-btn" bindtap="closeAnnoDetail">关闭</button>
         <button

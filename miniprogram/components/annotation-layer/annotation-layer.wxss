@@ -26,3 +26,16 @@
   opacity: 1;
   z-index: 50;
 }
+.anno-badge {
+  position: absolute;
+  right: -10rpx;
+  bottom: -14rpx;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 18rpx;
+  line-height: 1;
+  padding: 4rpx 8rpx;
+  border-radius: 16rpx;
+  white-space: nowrap;
+  pointer-events: none;
+}

@@ -56,6 +56,12 @@ Page({
     editingAnno: false,
     editContent: '',
     colorOptions: ['#333333', '#e74c3c', '#27ae60', '#2980b9', '#f39c12', '#8e44ad'],
+    // 点赞 / 回复
+    activeLiked: false,
+    activeLikeCount: 0,
+    activeReplies: [],
+    replyInput: '',
+    replyLoading: false,
     canOpenChat: false,
   },
   async onLoad(options) {
@@ -139,7 +145,7 @@ Page({
         canOpenChat
       });
       try {
-        const annoRes = await api.getAnnotations(post.id);
+        const annoRes = await api.getAnnotations(post.id, currentUserId);
         this.setData({ annotations: annoRes.annotations || [] });
       } catch (e) {
         this.setData({ annotations: [] });
@@ -338,8 +344,23 @@ Page({
     this.setData({
       showAnnoDetail: true, activeAnno: anno, canDeleteActive: canDelete,
       activeRotate: rotate, activeScale: scale, activeColor: color, activeFontSize: fontSize,
-      editingAnno: false, editContent: anno.content
+      editingAnno: false, editContent: anno.content,
+      activeLiked: !!anno.liked, activeLikeCount: Number(anno.likeCount) || 0,
+      activeReplies: [], replyInput: ''
     });
+    this._loadReplies(anno.id);
+  },
+  async _loadReplies(annId) {
+    const { post } = this.data;
+    try {
+      const res = await api.getAnnotationReplies(post.id, annId);
+      // 弹层可能已切换到别的批注,确认还在看同一条才写入
+      if (this.data.activeAnno && this.data.activeAnno.id === annId) {
+        this.setData({ activeReplies: res.replies || [] });
+      }
+    } catch (e) {
+      // 回复加载失败不阻断弹层,静默
+    }
   },
   _measureCard() {
     const q = wx.createSelectorQuery().in(this);
@@ -549,6 +570,69 @@ Page({
         showAnnoDetail: false, activeAnno: null
       });
       wx.showToast({ title: '已删除', icon: 'none' });
+    } catch (error) {
+      wx.showToast({ title: error.message || '删除失败', icon: 'none' });
+    }
+  },
+  // ===== 点赞 / 回复 =====
+  _patchAnnoInList(annId, patch) {
+    const idx = this.data.annotations.findIndex(a => a.id === annId);
+    if (idx < 0) return;
+    const upd = {};
+    Object.keys(patch).forEach(k => { upd[`annotations[${idx}].${k}`] = patch[k]; });
+    this.setData(upd);
+  },
+  async onToggleLike() {
+    const { post, currentUserId, activeAnno, activeLiked, activeLikeCount } = this.data;
+    if (!activeAnno) return;
+    if (!currentUserId) { wx.showToast({ title: '请先登录', icon: 'none' }); return; }
+    // 乐观更新
+    const nextLiked = !activeLiked;
+    const nextCount = activeLikeCount + (nextLiked ? 1 : -1);
+    this.setData({ activeLiked: nextLiked, activeLikeCount: nextCount });
+    this._patchAnnoInList(activeAnno.id, { liked: nextLiked, likeCount: nextCount });
+    try {
+      const res = await api.toggleAnnotationLike(post.id, activeAnno.id, currentUserId);
+      // 以服务端返回为准校正
+      this.setData({ activeLiked: res.liked, activeLikeCount: res.likeCount });
+      this._patchAnnoInList(activeAnno.id, { liked: res.liked, likeCount: res.likeCount });
+    } catch (error) {
+      // 回滚
+      this.setData({ activeLiked, activeLikeCount });
+      this._patchAnnoInList(activeAnno.id, { liked: activeLiked, likeCount: activeLikeCount });
+      wx.showToast({ title: error.message || '操作失败', icon: 'none' });
+    }
+  },
+  onReplyInput(e) {
+    this.setData({ replyInput: e.detail.value });
+  },
+  async submitReply() {
+    const { post, currentUserId, activeAnno, replyInput, replyLoading } = this.data;
+    if (!activeAnno || replyLoading) return;
+    if (!currentUserId) { wx.showToast({ title: '请先登录', icon: 'none' }); return; }
+    const content = String(replyInput || '').trim();
+    if (!content) { wx.showToast({ title: '回复不能为空', icon: 'none' }); return; }
+    this.setData({ replyLoading: true });
+    try {
+      const res = await api.createAnnotationReply(post.id, activeAnno.id, currentUserId, content);
+      const replies = this.data.activeReplies.concat(res.reply);
+      this.setData({ activeReplies: replies, replyInput: '' });
+      this._patchAnnoInList(activeAnno.id, { replyCount: replies.length });
+    } catch (error) {
+      wx.showToast({ title: error.message || '回复失败', icon: 'none' });
+    } finally {
+      this.setData({ replyLoading: false });
+    }
+  },
+  async deleteReply(e) {
+    const replyId = e.currentTarget.dataset.id;
+    const { post, currentUserId, activeAnno } = this.data;
+    if (!activeAnno || !replyId) return;
+    try {
+      await api.deleteAnnotationReply(post.id, activeAnno.id, replyId, currentUserId);
+      const replies = this.data.activeReplies.filter(r => r.id !== replyId);
+      this.setData({ activeReplies: replies });
+      this._patchAnnoInList(activeAnno.id, { replyCount: replies.length });
     } catch (error) {
       wx.showToast({ title: error.message || '删除失败', icon: 'none' });
     }
