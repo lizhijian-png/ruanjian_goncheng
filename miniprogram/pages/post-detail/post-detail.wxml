@@ -164,18 +164,18 @@
   </view>
 
   <view wx:if="{{showAnnoDetail}}" class="anno-input-overlay" bindtap="closeAnnoDetail">
-    <view class="anno-detail-panel" catchtap="">
+    <view class="anno-detail-panel" catchtap="noop">
       <view class="anno-detail-author">{{activeAnno.nickname}}</view>
       <block wx:if="{{editingAnno}}">
-        <textarea class="anno-edit-textarea" value="{{editContent}}" bindinput="onEditContentInput" maxlength="200" auto-height />
+        <textarea class="anno-edit-textarea" value="{{editContent}}" bindinput="onEditContentInput" maxlength="200" auto-height catchtap="noop" />
         <view class="anno-edit-btns">
-          <button class="ghost-btn evidence-btn" bindtap="cancelEditAnno">取消</button>
-          <button class="primary-btn evidence-btn" bindtap="saveEditContent">保存</button>
+          <button class="ghost-btn evidence-btn" catchtap="cancelEditAnno">取消</button>
+          <button class="primary-btn evidence-btn" catchtap="saveEditContent">保存</button>
         </view>
       </block>
       <block wx:else>
         <view class="anno-detail-content">{{activeAnno.content}}</view>
-        <view wx:if="{{canDeleteActive && activeAnno.type === 'text'}}" class="anno-edit-entry" bindtap="startEditAnno">✏️ 编辑文字</view>
+        <view wx:if="{{canDeleteActive && activeAnno.type === 'text'}}" class="anno-edit-entry" catchtap="startEditAnno">✏️ 编辑文字</view>
       </block>
       <view class="muted">{{activeAnno.createdAt}}</view>
       <view wx:if="{{canDeleteActive && activeAnno.type === 'text'}}" class="anno-rotate-row">
@@ -186,7 +186,7 @@
             class="anno-color-dot {{activeColor === item ? 'active' : ''}}"
             style="background:{{item}}"
             data-color="{{item}}"
-            bindtap="onPickColor"
+            catchtap="onPickColor"
           ></view>
         </view>
       </view>

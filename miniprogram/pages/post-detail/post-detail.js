@@ -454,6 +454,7 @@ Page({
     try { return Number(JSON.parse(styleStr || '{}').scale) || 1; } catch (e) { return 1; }
   },
   // ===== 内容/样式编辑 =====
+  noop() {},
   startEditAnno() {
     const anno = this.data.activeAnno;
     if (!anno) return;
