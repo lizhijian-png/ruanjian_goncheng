@@ -27,6 +27,10 @@ Component({
     },
     toggleVisible() {
       this.triggerEvent('togglevisible');
+    },
+    openTrash() {
+      this.setData({ expanded: false });
+      this.triggerEvent('opentrash');
     }
   }
 });

@@ -62,6 +62,9 @@ Page({
     activeReplies: [],
     replyInput: '',
     replyLoading: false,
+    // 回收站
+    showTrash: false,
+    trashList: [],
     canOpenChat: false,
   },
   async onLoad(options) {
@@ -569,7 +572,7 @@ Page({
         annotations: this.data.annotations.filter(a => a.id !== activeAnno.id),
         showAnnoDetail: false, activeAnno: null
       });
-      wx.showToast({ title: '已删除', icon: 'none' });
+      wx.showToast({ title: '已移入回收站', icon: 'none' });
     } catch (error) {
       wx.showToast({ title: error.message || '删除失败', icon: 'none' });
     }
@@ -635,6 +638,36 @@ Page({
       this._patchAnnoInList(activeAnno.id, { replyCount: replies.length });
     } catch (error) {
       wx.showToast({ title: error.message || '删除失败', icon: 'none' });
+    }
+  },
+  // ===== 回收站 =====
+  async openTrash() {
+    const { post, currentUserId } = this.data;
+    try {
+      const res = await api.getAnnotationTrash(post.id, currentUserId);
+      this.setData({ showTrash: true, trashList: res.trash || [] });
+    } catch (error) {
+      wx.showToast({ title: error.message || '回收站加载失败', icon: 'none' });
+    }
+  },
+  closeTrash() {
+    this.setData({ showTrash: false });
+  },
+  async restoreFromTrash(e) {
+    const annId = e.currentTarget.dataset.id;
+    const { post, currentUserId } = this.data;
+    if (!annId) return;
+    try {
+      await api.restoreAnnotation(post.id, annId, currentUserId);
+      // 软删未动赞/回复,恢复后重新拉一次列表,拿到准确的点赞/回复计数
+      this.setData({ trashList: this.data.trashList.filter(a => a.id !== annId) });
+      try {
+        const annoRes = await api.getAnnotations(post.id, currentUserId);
+        this.setData({ annotations: annoRes.annotations || [] });
+      } catch (e) { /* 列表刷新失败不阻断恢复结果 */ }
+      wx.showToast({ title: '已恢复', icon: 'none' });
+    } catch (error) {
+      wx.showToast({ title: error.message || '恢复失败', icon: 'none' });
     }
   },
   openChat() {

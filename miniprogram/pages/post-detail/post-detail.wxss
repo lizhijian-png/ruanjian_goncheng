@@ -419,3 +419,42 @@
   line-height: 64rpx;
   height: 64rpx;
 }
+/* 批注回收站 */
+.anno-trash-list {
+  max-height: 600rpx;
+  overflow-y: auto;
+  margin-top: 12rpx;
+}
+.anno-trash-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #f2f2f2;
+}
+.anno-trash-main {
+  flex: 1;
+  min-width: 0;
+}
+.anno-trash-author {
+  font-size: 24rpx;
+  color: #2980b9;
+}
+.anno-trash-content {
+  font-size: 28rpx;
+  color: #333;
+  word-break: break-all;
+  margin: 4rpx 0;
+}
+.anno-trash-time {
+  font-size: 20rpx;
+}
+.anno-trash-restore {
+  flex-shrink: 0;
+  margin-left: 20rpx;
+  padding: 8rpx 24rpx;
+  background: #27ae60;
+  color: #fff;
+  font-size: 26rpx;
+  border-radius: 30rpx;
+}

@@ -243,6 +243,19 @@ function deleteAnnotationReply(postId, annId, replyId, userId) {
   });
 }
 
+function getAnnotationTrash(postId, viewerId) {
+  const q = viewerId ? `?viewerId=${encodeURIComponent(viewerId)}` : '';
+  return request({ url: `/api/posts/${postId}/annotations/trash${q}` });
+}
+
+function restoreAnnotation(postId, annId, userId) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}/restore`,
+    method: 'POST',
+    data: { userId }
+  });
+}
+
 module.exports = {
   login,
   bind,
@@ -280,5 +293,7 @@ module.exports = {
   toggleAnnotationLike,
   getAnnotationReplies,
   createAnnotationReply,
-  deleteAnnotationReply
+  deleteAnnotationReply,
+  getAnnotationTrash,
+  restoreAnnotation
 };
