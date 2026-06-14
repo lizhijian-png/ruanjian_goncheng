@@ -45,10 +45,35 @@ async function run() {
     ok(edited.content === '改后的内容', '内容更新成功');
     ok(st.color === '#27ae60' && Number(st.fontSize) === 40, '颜色/字号更新成功');
 
+    // 4.7 点赞:插入一条点赞,再查计数(模拟切换的"赞"分支)
+    const likeId = 'test_like_' + Date.now();
+    await pool.execute('INSERT INTO annotation_likes (id, annId, userId) VALUES (?, ?, ?)', [likeId, annId, post.publisherId]);
+    const [[likeCnt]] = await pool.execute('SELECT COUNT(*) AS cnt FROM annotation_likes WHERE annId = ?', [annId]);
+    ok(Number(likeCnt.cnt) === 1, '点赞计数正确');
+    // UNIQUE(annId, userId):同一人重复赞应失败
+    let dupBlocked = false;
+    try {
+      await pool.execute('INSERT INTO annotation_likes (id, annId, userId) VALUES (?, ?, ?)', [likeId + '_x', annId, post.publisherId]);
+    } catch (e) { dupBlocked = e.code === 'ER_DUP_ENTRY'; }
+    ok(dupBlocked, '同一用户重复点赞被 UNIQUE 拦截');
+
+    // 4.8 回复:插入两条回复,按 annId 查列表
+    const replyId = 'test_reply_' + Date.now();
+    await pool.execute(
+      'INSERT INTO annotation_replies (id, annId, userId, nickname, content) VALUES (?, ?, ?, ?, ?)',
+      [replyId, annId, post.publisherId, '测试者', '这是一条回复']
+    );
+    const [replies] = await pool.execute('SELECT id, content FROM annotation_replies WHERE annId = ? ORDER BY createdAt ASC', [annId]);
+    ok(replies.length === 1 && replies[0].content === '这是一条回复', '回复插入并查询成功');
+
+    // 4.9 删批注应级联删除其点赞/回复(外键 ON DELETE CASCADE)
     // 5. 删除
     await pool.execute('DELETE FROM annotations WHERE id = ?', [annId]);
     const [after] = await pool.execute('SELECT id FROM annotations WHERE id = ?', [annId]);
     ok(after.length === 0, '删除批注成功');
+    const [likesAfter] = await pool.execute('SELECT id FROM annotation_likes WHERE annId = ?', [annId]);
+    const [repliesAfter] = await pool.execute('SELECT id FROM annotation_replies WHERE annId = ?', [annId]);
+    ok(likesAfter.length === 0 && repliesAfter.length === 0, '删批注级联清除点赞/回复');
 
     console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
   } catch (e) {

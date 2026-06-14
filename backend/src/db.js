@@ -314,6 +314,39 @@ async function createTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
+  // 批注点赞表(一个用户对一条批注最多一个赞,UNIQUE 实现切换)
+  await query(`
+    CREATE TABLE IF NOT EXISTS annotation_likes (
+      id          VARCHAR(64) PRIMARY KEY,
+      annId       VARCHAR(64) NOT NULL,
+      userId      VARCHAR(64) NOT NULL,
+      createdAt   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_anno_like (annId, userId),
+      INDEX idx_anno_like_ann (annId),
+      CONSTRAINT fk_anno_like_ann FOREIGN KEY (annId)
+        REFERENCES annotations(id) ON DELETE CASCADE,
+      CONSTRAINT fk_anno_like_user FOREIGN KEY (userId)
+        REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  // 批注回复表(一条批注多条回复)
+  await query(`
+    CREATE TABLE IF NOT EXISTS annotation_replies (
+      id          VARCHAR(64) PRIMARY KEY,
+      annId       VARCHAR(64) NOT NULL,
+      userId      VARCHAR(64) NOT NULL,
+      nickname    VARCHAR(100) NOT NULL,
+      content     VARCHAR(200) NOT NULL,
+      createdAt   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_anno_reply_ann (annId),
+      CONSTRAINT fk_anno_reply_ann FOREIGN KEY (annId)
+        REFERENCES annotations(id) ON DELETE CASCADE,
+      CONSTRAINT fk_anno_reply_user FOREIGN KEY (userId)
+        REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
   // completion_votes 表：记录参与者对他人完成情况的投票
   await query(`
     CREATE TABLE IF NOT EXISTS completion_votes (
