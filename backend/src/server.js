@@ -1244,7 +1244,7 @@ app.delete('/api/posts/:id/annotations/:annId', async (req, res, next) => {
 app.patch('/api/posts/:id/annotations/:annId', async (req, res, next) => {
   try {
     const { id: postId, annId } = req.params;
-    const { userId, x, y, rotate, scale } = req.body;
+    const { userId, x, y, rotate, scale, content, color, fontSize } = req.body;
 
     const annRows = await query('SELECT * FROM annotations WHERE id = ? AND postId = ?', [annId, postId]);
     const ann = annRows[0];
@@ -1265,9 +1265,9 @@ app.patch('/api/posts/:id/annotations/:annId', async (req, res, next) => {
       return res.status(400).json({ message: '坐标超出范围' });
     }
 
-    // 旋转角 / 缩放:可选,合并进 style JSON
+    // 旋转角 / 缩放 / 颜色 / 字号:可选,合并进 style JSON
     let styleStr = ann.style;
-    if (rotate !== undefined || scale !== undefined) {
+    if (rotate !== undefined || scale !== undefined || color !== undefined || fontSize !== undefined) {
       let style = {};
       try { style = JSON.parse(ann.style || '{}'); } catch (e) { style = {}; }
       if (rotate !== undefined) {
@@ -1284,10 +1284,39 @@ app.patch('/api/posts/:id/annotations/:annId', async (req, res, next) => {
         }
         style.scale = s;
       }
+      if (color !== undefined) {
+        if (!/^#[0-9a-fA-F]{6}$/.test(String(color))) {
+          return res.status(400).json({ message: '颜色格式不合法' });
+        }
+        style.color = String(color);
+      }
+      if (fontSize !== undefined) {
+        const fs = Number(fontSize);
+        if (!(fs >= 20 && fs <= 80)) {
+          return res.status(400).json({ message: '字号超出范围' });
+        }
+        style.fontSize = fs;
+      }
       styleStr = JSON.stringify(style);
     }
 
-    await query('UPDATE annotations SET x = ?, y = ?, style = ? WHERE id = ?', [nx, ny, styleStr, annId]);
+    // 文字内容:可选,仅文字批注可改,印章内容(emoji)不允许改
+    let contentStr = ann.content;
+    if (content !== undefined) {
+      if (ann.type !== 'text') {
+        return res.status(400).json({ message: '印章内容不可编辑' });
+      }
+      const c = String(content).trim();
+      if (!c) {
+        return res.status(400).json({ message: '批注内容不能为空' });
+      }
+      if (c.length > 200) {
+        return res.status(400).json({ message: '批注内容过长' });
+      }
+      contentStr = c;
+    }
+
+    await query('UPDATE annotations SET x = ?, y = ?, style = ?, content = ? WHERE id = ?', [nx, ny, styleStr, contentStr, annId]);
 
     const rows = await query(
       `SELECT id, userId, nickname, type, content, style, x, y, createdAt

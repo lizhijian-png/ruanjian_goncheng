@@ -51,6 +51,11 @@ Page({
     canDeleteActive: false,
     activeRotate: 0,
     activeScale: 1,
+    activeColor: '#333333',
+    activeFontSize: 28,
+    editingAnno: false,
+    editContent: '',
+    colorOptions: ['#333333', '#e74c3c', '#27ae60', '#2980b9', '#f39c12', '#8e44ad'],
     canOpenChat: false,
   },
   async onLoad(options) {
@@ -322,13 +327,19 @@ Page({
     const anno = this.data.annotations.find(a => a.id === e.detail.id);
     if (!anno) return;
     const canDelete = anno.userId === this.data.currentUserId || this.data.isPublisher;
-    let rotate = 0, scale = 1;
+    let rotate = 0, scale = 1, color = '#333333', fontSize = 28;
     try {
       const st = JSON.parse(anno.style || '{}');
       rotate = Number(st.rotate) || 0;
       scale = Number(st.scale) || 1;
+      if (st.color) color = st.color;
+      if (st.fontSize) fontSize = Number(st.fontSize);
     } catch (err) { rotate = 0; scale = 1; }
-    this.setData({ showAnnoDetail: true, activeAnno: anno, canDeleteActive: canDelete, activeRotate: rotate, activeScale: scale });
+    this.setData({
+      showAnnoDetail: true, activeAnno: anno, canDeleteActive: canDelete,
+      activeRotate: rotate, activeScale: scale, activeColor: color, activeFontSize: fontSize,
+      editingAnno: false, editContent: anno.content
+    });
   },
   _measureCard() {
     const q = wx.createSelectorQuery().in(this);
@@ -441,6 +452,91 @@ Page({
   },
   _parseScale(styleStr) {
     try { return Number(JSON.parse(styleStr || '{}').scale) || 1; } catch (e) { return 1; }
+  },
+  // ===== 内容/样式编辑 =====
+  startEditAnno() {
+    const anno = this.data.activeAnno;
+    if (!anno) return;
+    this.setData({ editingAnno: true, editContent: anno.content });
+  },
+  cancelEditAnno() {
+    this.setData({ editingAnno: false, editContent: this.data.activeAnno ? this.data.activeAnno.content : '' });
+  },
+  onEditContentInput(e) {
+    this.setData({ editContent: e.detail.value });
+  },
+  async saveEditContent() {
+    const { post, currentUserId, activeAnno, editContent } = this.data;
+    if (!activeAnno) return;
+    const content = String(editContent || '').trim();
+    if (!content) {
+      wx.showToast({ title: '内容不能为空', icon: 'none' });
+      return;
+    }
+    try {
+      const res = await api.updateAnnotationContent(post.id, activeAnno.id, currentUserId, { content });
+      const idx = this.data.annotations.findIndex(a => a.id === activeAnno.id);
+      const patch = { activeAnno: res.annotation, editingAnno: false };
+      if (idx >= 0) patch[`annotations[${idx}]`] = res.annotation;
+      this.setData(patch);
+      wx.showToast({ title: '已保存', icon: 'none' });
+    } catch (error) {
+      wx.showToast({ title: error.message || '保存失败', icon: 'none' });
+    }
+  },
+  async onPickColor(e) {
+    const color = e.currentTarget.dataset.color;
+    const { post, currentUserId, activeAnno } = this.data;
+    if (!activeAnno || color === this.data.activeColor) return;
+    const idx = this.data.annotations.findIndex(a => a.id === activeAnno.id);
+    if (idx < 0) return;
+    const oldColor = this.data.activeColor;
+    const oldStyle = activeAnno.style;
+    try {
+      const res = await api.updateAnnotationContent(post.id, activeAnno.id, currentUserId, { color });
+      this.setData({
+        [`annotations[${idx}]`]: res.annotation,
+        activeAnno: res.annotation, activeColor: color
+      });
+    } catch (error) {
+      this.setData({ [`annotations[${idx}].style`]: oldStyle, activeColor: oldColor });
+      wx.showToast({ title: error.message || '改色失败', icon: 'none' });
+    }
+  },
+  onFontSizeChanging(e) {
+    const fontSize = Number(e.detail.value);
+    const id = this.data.activeAnno && this.data.activeAnno.id;
+    if (!id) return;
+    const idx = this.data.annotations.findIndex(a => a.id === id);
+    if (idx < 0) return;
+    let style = {};
+    try { style = JSON.parse(this.data.annotations[idx].style || '{}'); } catch (err) { style = {}; }
+    style.fontSize = fontSize;
+    this.setData({
+      activeFontSize: fontSize,
+      [`annotations[${idx}].style`]: JSON.stringify(style)
+    });
+  },
+  async onFontSizeChange(e) {
+    const fontSize = Number(e.detail.value);
+    const { post, currentUserId, activeAnno } = this.data;
+    if (!activeAnno) return;
+    const idx = this.data.annotations.findIndex(a => a.id === activeAnno.id);
+    if (idx < 0) return;
+    const oldStyle = activeAnno.style;
+    try {
+      const res = await api.updateAnnotationContent(post.id, activeAnno.id, currentUserId, { fontSize });
+      this.setData({
+        [`annotations[${idx}]`]: res.annotation,
+        activeAnno: res.annotation
+      });
+    } catch (error) {
+      this.setData({ [`annotations[${idx}].style`]: oldStyle, activeFontSize: this._parseFontSize(oldStyle) });
+      wx.showToast({ title: error.message || '字号修改失败', icon: 'none' });
+    }
+  },
+  _parseFontSize(styleStr) {
+    try { return Number(JSON.parse(styleStr || '{}').fontSize) || 28; } catch (e) { return 28; }
   },
   async deleteActiveAnnotation() {
     const { post, currentUserId, activeAnno } = this.data;

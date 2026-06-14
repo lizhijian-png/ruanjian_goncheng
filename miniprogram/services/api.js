@@ -205,6 +205,15 @@ function updateAnnotationScale(postId, annId, userId, scale) {
   });
 }
 
+function updateAnnotationContent(postId, annId, userId, patch) {
+  // patch 可含 content / color / fontSize,各自可选
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}`,
+    method: 'PATCH',
+    data: { userId, ...patch }
+  });
+}
+
 module.exports = {
   login,
   bind,
@@ -237,5 +246,6 @@ module.exports = {
   getChatHistory,
   updateAnnotationPosition,
   updateAnnotationRotate,
-  updateAnnotationScale
+  updateAnnotationScale,
+  updateAnnotationContent
 };

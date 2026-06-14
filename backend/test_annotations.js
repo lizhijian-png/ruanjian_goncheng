@@ -37,6 +37,14 @@ async function run() {
     const [[moved]] = await pool.execute('SELECT x, y FROM annotations WHERE id = ?', [annId]);
     ok(Number(moved.x) === 12.5 && Number(moved.y) === 80, '坐标更新成功');
 
+    // 4.6 更新内容 + 样式(content / style.color / style.fontSize),模拟 PATCH 的 merge 写法
+    const newStyle = JSON.stringify({ color: '#27ae60', fontSize: 40, rotate: 0, scale: 1 });
+    await pool.execute('UPDATE annotations SET content = ?, style = ? WHERE id = ?', ['改后的内容', newStyle, annId]);
+    const [[edited]] = await pool.execute('SELECT content, style FROM annotations WHERE id = ?', [annId]);
+    const st = JSON.parse(edited.style || '{}');
+    ok(edited.content === '改后的内容', '内容更新成功');
+    ok(st.color === '#27ae60' && Number(st.fontSize) === 40, '颜色/字号更新成功');
+
     // 5. 删除
     await pool.execute('DELETE FROM annotations WHERE id = ?', [annId]);
     const [after] = await pool.execute('SELECT id FROM annotations WHERE id = ?', [annId]);

@@ -166,8 +166,40 @@
   <view wx:if="{{showAnnoDetail}}" class="anno-input-overlay" bindtap="closeAnnoDetail">
     <view class="anno-detail-panel" catchtap="">
       <view class="anno-detail-author">{{activeAnno.nickname}}</view>
-      <view class="anno-detail-content">{{activeAnno.content}}</view>
+      <block wx:if="{{editingAnno}}">
+        <textarea class="anno-edit-textarea" value="{{editContent}}" bindinput="onEditContentInput" maxlength="200" auto-height />
+        <view class="anno-edit-btns">
+          <button class="ghost-btn evidence-btn" bindtap="cancelEditAnno">取消</button>
+          <button class="primary-btn evidence-btn" bindtap="saveEditContent">保存</button>
+        </view>
+      </block>
+      <block wx:else>
+        <view class="anno-detail-content">{{activeAnno.content}}</view>
+        <view wx:if="{{canDeleteActive && activeAnno.type === 'text'}}" class="anno-edit-entry" bindtap="startEditAnno">✏️ 编辑文字</view>
+      </block>
       <view class="muted">{{activeAnno.createdAt}}</view>
+      <view wx:if="{{canDeleteActive && activeAnno.type === 'text'}}" class="anno-rotate-row">
+        <text class="anno-rotate-label">颜色</text>
+        <view class="anno-color-swatches">
+          <view
+            wx:for="{{colorOptions}}" wx:key="*this"
+            class="anno-color-dot {{activeColor === item ? 'active' : ''}}"
+            style="background:{{item}}"
+            data-color="{{item}}"
+            bindtap="onPickColor"
+          ></view>
+        </view>
+      </view>
+      <view wx:if="{{canDeleteActive && activeAnno.type === 'text'}}" class="anno-rotate-row">
+        <text class="anno-rotate-label">字号 {{activeFontSize}}</text>
+        <slider
+          class="anno-rotate-slider"
+          min="20" max="80" step="2" value="{{activeFontSize}}"
+          block-size="20"
+          bindchanging="onFontSizeChanging"
+          bindchange="onFontSizeChange"
+        />
+      </view>
       <view wx:if="{{canDeleteActive}}" class="anno-rotate-row">
         <text class="anno-rotate-label">旋转 {{activeRotate}}°</text>
         <slider

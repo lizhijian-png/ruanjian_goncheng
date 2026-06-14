@@ -307,3 +307,38 @@
 .anno-rotate-slider {
   margin: 8rpx 0;
 }
+.anno-edit-entry {
+  font-size: 24rpx;
+  color: #2980b9;
+  margin-bottom: 10rpx;
+}
+.anno-edit-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 80rpx;
+  padding: 12rpx;
+  border: 1rpx solid #e0d5cc;
+  border-radius: 8rpx;
+  font-size: 28rpx;
+  color: #5a4a52;
+  margin-bottom: 12rpx;
+}
+.anno-edit-btns {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 12rpx;
+}
+.anno-color-swatches {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 10rpx;
+}
+.anno-color-dot {
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 50%;
+  border: 4rpx solid transparent;
+}
+.anno-color-dot.active {
+  border-color: #7a5a00;
+}
