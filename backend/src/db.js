@@ -306,6 +306,7 @@ async function createTables() {
       x           DECIMAL(5,2) NOT NULL,
       y           DECIMAL(5,2) NOT NULL,
       createdAt   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      deletedAt   DATETIME NULL DEFAULT NULL,
       INDEX idx_annotations_post (postId),
       CONSTRAINT fk_annotations_post FOREIGN KEY (postId)
         REFERENCES posts(id) ON DELETE CASCADE,
@@ -374,6 +375,12 @@ async function createTables() {
   const publisherCompleteCol = await query(`SHOW COLUMNS FROM posts LIKE 'publisherComplete'`);
   if (publisherCompleteCol.length === 0) {
     await query(`ALTER TABLE posts ADD COLUMN publisherComplete TINYINT(1) DEFAULT NULL`);
+  }
+
+  // annotations 表新增 deletedAt 字段（软删除：NULL=正常, 非空=已进回收站）
+  const annoDeletedAtCol = await query(`SHOW COLUMNS FROM annotations LIKE 'deletedAt'`);
+  if (annoDeletedAtCol.length === 0) {
+    await query(`ALTER TABLE annotations ADD COLUMN deletedAt DATETIME NULL DEFAULT NULL`);
   }
 
   await query(`

@@ -66,14 +66,31 @@ async function run() {
     const [replies] = await pool.execute('SELECT id, content FROM annotation_replies WHERE annId = ? ORDER BY createdAt ASC', [annId]);
     ok(replies.length === 1 && replies[0].content === '这是一条回复', '回复插入并查询成功');
 
-    // 4.9 删批注应级联删除其点赞/回复(外键 ON DELETE CASCADE)
-    // 5. 删除
+    // 4.9 软删除:标记 deletedAt 而非物理删,行仍在
+    await pool.execute('UPDATE annotations SET deletedAt = NOW() WHERE id = ?', [annId]);
+    const [[soft]] = await pool.execute('SELECT id, deletedAt FROM annotations WHERE id = ?', [annId]);
+    ok(soft && soft.deletedAt !== null, '软删除标记 deletedAt(行未物理删除)');
+
+    // 4.10 列表查询应过滤掉已软删的批注
+    const [visible] = await pool.execute('SELECT id FROM annotations WHERE postId = ? AND deletedAt IS NULL', [post.id]);
+    ok(!visible.some(r => r.id === annId), '列表查询过滤掉已软删批注');
+
+    // 4.11 回收站查询应能查到已软删的批注
+    const [trash] = await pool.execute('SELECT id FROM annotations WHERE postId = ? AND deletedAt IS NOT NULL', [post.id]);
+    ok(trash.some(r => r.id === annId), '回收站查到已软删批注');
+
+    // 4.12 恢复:deletedAt 置空后,列表又能查到
+    await pool.execute('UPDATE annotations SET deletedAt = NULL WHERE id = ?', [annId]);
+    const [[restored]] = await pool.execute('SELECT id, deletedAt FROM annotations WHERE id = ?', [annId]);
+    ok(restored && restored.deletedAt === null, '恢复后 deletedAt 置空');
+
+    // 5. 物理删除(收尾清理)应级联删除其点赞/回复(外键 ON DELETE CASCADE)
     await pool.execute('DELETE FROM annotations WHERE id = ?', [annId]);
     const [after] = await pool.execute('SELECT id FROM annotations WHERE id = ?', [annId]);
-    ok(after.length === 0, '删除批注成功');
+    ok(after.length === 0, '物理删除批注成功');
     const [likesAfter] = await pool.execute('SELECT id FROM annotation_likes WHERE annId = ?', [annId]);
     const [repliesAfter] = await pool.execute('SELECT id FROM annotation_replies WHERE annId = ?', [annId]);
-    ok(likesAfter.length === 0 && repliesAfter.length === 0, '删批注级联清除点赞/回复');
+    ok(likesAfter.length === 0 && repliesAfter.length === 0, '物理删批注级联清除点赞/回复');
 
     console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
   } catch (e) {

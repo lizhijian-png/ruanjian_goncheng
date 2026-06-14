@@ -1159,7 +1159,7 @@ app.get('/api/posts/:id/annotations', async (req, res, next) => {
               (SELECT COUNT(*) FROM annotation_likes l WHERE l.annId = a.id) AS likeCount,
               (SELECT COUNT(*) FROM annotation_replies r WHERE r.annId = a.id) AS replyCount,
               (SELECT COUNT(*) FROM annotation_likes l2 WHERE l2.annId = a.id AND l2.userId = ?) AS liked
-       FROM annotations a WHERE a.postId = ? ORDER BY a.createdAt ASC`,
+       FROM annotations a WHERE a.postId = ? AND a.deletedAt IS NULL ORDER BY a.createdAt ASC`,
       [viewerId, req.params.id]
     );
     annotations.forEach((a) => {
@@ -1226,6 +1226,7 @@ app.post('/api/posts/:id/annotations', async (req, res, next) => {
   }
 });
 
+// 软删除:进回收站(不物理删,只标记 deletedAt)。作者本人或楼主可删
 app.delete('/api/posts/:id/annotations/:annId', async (req, res, next) => {
   try {
     const { id: postId, annId } = req.params;
@@ -1243,8 +1244,66 @@ app.delete('/api/posts/:id/annotations/:annId', async (req, res, next) => {
       return res.status(403).json({ message: '无权删除该批注' });
     }
 
-    await query('DELETE FROM annotations WHERE id = ?', [annId]);
+    await query('UPDATE annotations SET deletedAt = NOW() WHERE id = ?', [annId]);
     res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 回收站列表:楼主看本帖所有已删批注,普通参与者只看自己删的
+app.get('/api/posts/:id/annotations/trash', async (req, res, next) => {
+  try {
+    const postId = req.params.id;
+    const viewerId = req.query.viewerId || '';
+
+    const postRows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
+    const post = postRows[0];
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
+    if (!viewerId || !(await isParticipant(postId, viewerId, post))) {
+      return res.status(403).json({ message: '只有任务参与者可以查看回收站' });
+    }
+
+    const isPublisher = post.publisherId === viewerId;
+    const sql = isPublisher
+      ? `SELECT id, userId, nickname, type, content, style, x, y, createdAt, deletedAt
+         FROM annotations WHERE postId = ? AND deletedAt IS NOT NULL ORDER BY deletedAt DESC`
+      : `SELECT id, userId, nickname, type, content, style, x, y, createdAt, deletedAt
+         FROM annotations WHERE postId = ? AND deletedAt IS NOT NULL AND userId = ? ORDER BY deletedAt DESC`;
+    const params = isPublisher ? [postId] : [postId, viewerId];
+    const trash = await query(sql, params);
+    res.json({ success: true, trash });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 恢复:把回收站里的批注还原(deletedAt 置空)。作者本人或楼主可恢复
+app.post('/api/posts/:id/annotations/:annId/restore', async (req, res, next) => {
+  try {
+    const { id: postId, annId } = req.params;
+    const { userId } = req.body;
+
+    const annRows = await query('SELECT * FROM annotations WHERE id = ? AND postId = ?', [annId, postId]);
+    const ann = annRows[0];
+    if (!ann) return res.status(404).json({ message: '批注不存在' });
+    if (!ann.deletedAt) return res.status(400).json({ message: '该批注未被删除' });
+
+    const postRows = await query('SELECT publisherId FROM posts WHERE id = ?', [postId]);
+    const post = postRows[0];
+    const isOwner = ann.userId === userId;
+    const isPublisher = post && post.publisherId === userId;
+    if (!isOwner && !isPublisher) {
+      return res.status(403).json({ message: '无权恢复该批注' });
+    }
+
+    await query('UPDATE annotations SET deletedAt = NULL WHERE id = ?', [annId]);
+    const rows = await query(
+      `SELECT id, userId, nickname, type, content, style, x, y, createdAt
+       FROM annotations WHERE id = ?`,
+      [annId]
+    );
+    res.json({ success: true, annotation: rows[0] });
   } catch (error) {
     next(error);
   }
@@ -1258,6 +1317,7 @@ app.patch('/api/posts/:id/annotations/:annId', async (req, res, next) => {
     const annRows = await query('SELECT * FROM annotations WHERE id = ? AND postId = ?', [annId, postId]);
     const ann = annRows[0];
     if (!ann) return res.status(404).json({ message: '批注不存在' });
+    if (ann.deletedAt) return res.status(404).json({ message: '批注已被删除' });
 
     const postRows = await query('SELECT publisherId FROM posts WHERE id = ?', [postId]);
     const post = postRows[0];
@@ -1344,7 +1404,7 @@ app.post('/api/posts/:id/annotations/:annId/like', async (req, res, next) => {
     const { id: postId, annId } = req.params;
     const { userId } = req.body;
 
-    const annRows = await query('SELECT id FROM annotations WHERE id = ? AND postId = ?', [annId, postId]);
+    const annRows = await query('SELECT id FROM annotations WHERE id = ? AND postId = ? AND deletedAt IS NULL', [annId, postId]);
     if (!annRows[0]) return res.status(404).json({ message: '批注不存在' });
 
     const postRows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
@@ -1374,7 +1434,7 @@ app.post('/api/posts/:id/annotations/:annId/like', async (req, res, next) => {
 app.get('/api/posts/:id/annotations/:annId/replies', async (req, res, next) => {
   try {
     const { id: postId, annId } = req.params;
-    const annRows = await query('SELECT id FROM annotations WHERE id = ? AND postId = ?', [annId, postId]);
+    const annRows = await query('SELECT id FROM annotations WHERE id = ? AND postId = ? AND deletedAt IS NULL', [annId, postId]);
     if (!annRows[0]) return res.status(404).json({ message: '批注不存在' });
 
     const replies = await query(
@@ -1394,7 +1454,7 @@ app.post('/api/posts/:id/annotations/:annId/replies', async (req, res, next) => 
     const { id: postId, annId } = req.params;
     const { userId, content } = req.body;
 
-    const annRows = await query('SELECT id FROM annotations WHERE id = ? AND postId = ?', [annId, postId]);
+    const annRows = await query('SELECT id FROM annotations WHERE id = ? AND postId = ? AND deletedAt IS NULL', [annId, postId]);
     if (!annRows[0]) return res.status(404).json({ message: '批注不存在' });
 
     const postRows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
