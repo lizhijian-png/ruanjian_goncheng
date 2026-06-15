@@ -1,0 +1,8 @@
+@import "../profile/profile.wxss";
+
+.loading-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+}
