@@ -1,0 +1,42 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+actor "任务发起方（楼主）" as Owner
+actor "任务参与方（搭子）" as Participant
+
+rectangle "帖子批注协作模块（R18-R20，需求变更新增）" {
+  usecase "贴文字批注/表情印章" as UC1
+  usecase "拖拽/旋转/缩放批注" as UC2
+  usecase "编辑批注内容/颜色/字号" as UC3
+  usecase "查看批注作者/时间" as UC4
+  usecase "删除批注" as UC5
+  usecase "点赞批注" as UC6
+  usecase "回复批注" as UC7
+  usecase "查看回收站" as UC8
+  usecase "恢复已删批注" as UC9
+}
+
+Participant --> UC1 : R18
+Participant --> UC2 : R18
+Participant --> UC3 : R18
+Participant --> UC4 : R18
+Participant --> UC6 : R19
+Participant --> UC7 : R19
+
+Owner --> UC1 : R18
+Owner --> UC5 : R20
+Owner --> UC8 : R20
+Owner --> UC9 : R20
+Participant --> UC5 : R20
+Participant --> UC8 : R20
+Participant --> UC9 : R20
+
+note bottom of UC5
+  删除权限 = 批注作者本人 OR 楼主
+  采用软删除（标记 deletedAt），可恢复
+end note
+note bottom of UC6
+  一人一赞，UNIQUE(annId,userId)
+  数据库约束兜底
+end note
+@enduml
