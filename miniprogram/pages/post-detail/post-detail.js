@@ -461,4 +461,24 @@ Page({
       url: `/pages/chat/chat?postId=${this.data.post.id}`
     });
   },
+  goUserProfile(e) {
+    const { userid } = e.currentTarget.dataset;
+    if (!userid) return;
+
+    const app = getApp();
+    const userInfo = app.globalData.userInfo || wx.getStorageSync('userInfo');
+    if (!userInfo || !userInfo.id) {
+      wx.showToast({ title: '请先登录', icon: 'none' });
+      return;
+    }
+
+    if (userid === userInfo.id) {
+      wx.switchTab({ url: '/pages/profile/profile' });
+      return;
+    }
+
+    wx.navigateTo({
+      url: `/pages/user-profile/user-profile?userId=${userid}`
+    });
+  },
 });

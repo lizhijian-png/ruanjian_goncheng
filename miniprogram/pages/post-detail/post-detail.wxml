@@ -2,7 +2,11 @@
   <view wx:if="{{placingMode}}" class="placing-hint">点击帖子上要贴批注的位置</view>
   <view class="post-card detail-card" bindtap="onCardTap">
     <view class="tag">任务详情</view>
-    <view class="publisher-bar">
+    <view
+      class="publisher-bar tappable"
+      catchtap="goUserProfile"
+      data-userid="{{post.publisherId}}"
+    >
       <image
         class="publisher-avatar"
         src="{{post.publisherAvatarUrl}}"
@@ -12,6 +16,7 @@
         <view class="publisher-name">{{post.publisher}}</view>
         <view class="publisher-category">{{post.category}}</view>
       </view>
+      <text class="profile-link-hint">›</text>
     </view>
     <view class="detail-title">{{post.title}}</view>
     <view class="detail-content">{{post.content}}</view>
@@ -40,9 +45,16 @@
     <view class="section-title detail-section">当前搭子</view>
     <view wx:if="{{buddies.length === 0}}" class="muted empty-hint">暂无搭子，快来加入吧</view>
     <block wx:for="{{buddies}}" wx:key="userId">
-      <view class="buddy-item">
-        <view class="buddy-name">{{item.nickname}}</view>
-        <view class="muted buddy-time">{{item.joinedAt}}</view>
+      <view
+        class="buddy-item tappable"
+        catchtap="goUserProfile"
+        data-userid="{{item.userId}}"
+      >
+        <view class="buddy-main">
+          <view class="buddy-name">{{item.nickname}}</view>
+          <view class="muted buddy-time">{{item.joinedAt}}</view>
+        </view>
+        <text class="profile-link-hint">›</text>
       </view>
     </block>
 
