@@ -103,6 +103,7 @@ async function syncPostStatus(postId) {
         'UPDATE posts SET status = ?, evaluationDeadline = ? WHERE id = ?',
         ['待评价', deadline, postId]
       );
+      await maybeSettleEarly(postId);
     }
     return;
   }
@@ -881,6 +882,7 @@ app.post('/api/posts/:id/complete', async (req, res, next) => {
     if (userId && current.publisherId !== userId) return res.status(403).json({ message: '只有发布者可以标记完成' });
 
     await query('UPDATE posts SET status = ? WHERE id = ?', ['待评价', req.params.id]);
+    await maybeSettleEarly(req.params.id);
     await deleteMessagesByPost(req.params.id);
     req.app.locals.chatServer.closeRoom(req.params.id, 'task_completed');
     const freshRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
@@ -966,6 +968,7 @@ app.post('/api/posts/:id/completion-vote', async (req, res, next) => {
       [voteId, req.params.id, userId, targetId, vote]
     );
 
+    await maybeSettleEarly(req.params.id);
     res.status(204).end();
   } catch (error) {
     next(error);
