@@ -12,6 +12,7 @@
       >{{item}}</view>
     </view>
     <button class="visible-toggle-btn" bindtap="toggleVisible">{{annoVisible ? '🙈 隐藏批注' : '👁 显示批注'}}</button>
+    <button class="visible-toggle-btn" bindtap="openTrash">🗑 回收站</button>
   </view>
   <view class="toolbox-fab" bindtap="toggle">{{expanded ? '✕' : '🧰'}}</view>
 </view>

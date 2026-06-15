@@ -306,10 +306,44 @@ async function createTables() {
       x           DECIMAL(5,2) NOT NULL,
       y           DECIMAL(5,2) NOT NULL,
       createdAt   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      deletedAt   DATETIME NULL DEFAULT NULL,
       INDEX idx_annotations_post (postId),
       CONSTRAINT fk_annotations_post FOREIGN KEY (postId)
         REFERENCES posts(id) ON DELETE CASCADE,
       CONSTRAINT fk_annotations_user FOREIGN KEY (userId)
+        REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  // 批注点赞表(一个用户对一条批注最多一个赞,UNIQUE 实现切换)
+  await query(`
+    CREATE TABLE IF NOT EXISTS annotation_likes (
+      id          VARCHAR(64) PRIMARY KEY,
+      annId       VARCHAR(64) NOT NULL,
+      userId      VARCHAR(64) NOT NULL,
+      createdAt   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_anno_like (annId, userId),
+      INDEX idx_anno_like_ann (annId),
+      CONSTRAINT fk_anno_like_ann FOREIGN KEY (annId)
+        REFERENCES annotations(id) ON DELETE CASCADE,
+      CONSTRAINT fk_anno_like_user FOREIGN KEY (userId)
+        REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  // 批注回复表(一条批注多条回复)
+  await query(`
+    CREATE TABLE IF NOT EXISTS annotation_replies (
+      id          VARCHAR(64) PRIMARY KEY,
+      annId       VARCHAR(64) NOT NULL,
+      userId      VARCHAR(64) NOT NULL,
+      nickname    VARCHAR(100) NOT NULL,
+      content     VARCHAR(200) NOT NULL,
+      createdAt   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_anno_reply_ann (annId),
+      CONSTRAINT fk_anno_reply_ann FOREIGN KEY (annId)
+        REFERENCES annotations(id) ON DELETE CASCADE,
+      CONSTRAINT fk_anno_reply_user FOREIGN KEY (userId)
         REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
@@ -343,6 +377,12 @@ async function createTables() {
     await query(`ALTER TABLE posts ADD COLUMN publisherComplete TINYINT(1) DEFAULT NULL`);
   }
 
+  // annotations 表新增 deletedAt 字段（软删除：NULL=正常, 非空=已进回收站）
+  const annoDeletedAtCol = await query(`SHOW COLUMNS FROM annotations LIKE 'deletedAt'`);
+  if (annoDeletedAtCol.length === 0) {
+    await query(`ALTER TABLE annotations ADD COLUMN deletedAt DATETIME NULL DEFAULT NULL`);
+  }
+
   await query(`
     CREATE TABLE IF NOT EXISTS messages (
       id          INT AUTO_INCREMENT PRIMARY KEY,
@@ -352,6 +392,36 @@ async function createTables() {
       content     TEXT NOT NULL,
       createdAt   DATETIME DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_messages_postId_createdAt (postId, createdAt)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  // 通知表
+  await query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id            VARCHAR(64) PRIMARY KEY,
+      userId        VARCHAR(64) NOT NULL,
+      postId        VARCHAR(64) NOT NULL,
+      type          VARCHAR(30) NOT NULL,
+      relatedUserId VARCHAR(64) DEFAULT NULL,
+      content       TEXT NOT NULL,
+      isRead        TINYINT(1) NOT NULL DEFAULT 0,
+      createdAt     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_notify_user_read (userId, isRead, createdAt),
+      INDEX idx_notify_user_post (userId, postId, type, isRead),
+      CONSTRAINT fk_notify_user FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT fk_notify_post FOREIGN KEY (postId) REFERENCES posts(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  // 聊天已读标记表
+  await query(`
+    CREATE TABLE IF NOT EXISTS chat_read_markers (
+      userId      VARCHAR(64) NOT NULL,
+      postId      VARCHAR(64) NOT NULL,
+      lastReadAt  DATETIME NOT NULL,
+      UNIQUE KEY uq_chat_read (userId, postId),
+      CONSTRAINT fk_crm_user FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT fk_crm_post FOREIGN KEY (postId) REFERENCES posts(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 }
@@ -396,6 +466,69 @@ async function deleteMessagesByPost(postId) {
   await query('DELETE FROM messages WHERE postId = ?', [postId]);
 }
 
+// ================== 通知相关 ==================
+
+async function insertNotification(notification) {
+  const { id, userId, postId, type, relatedUserId, content } = notification;
+  await query(
+    'INSERT INTO notifications (id, userId, postId, type, relatedUserId, content) VALUES (?, ?, ?, ?, ?, ?)',
+    [id, userId, postId, type, relatedUserId || null, content]
+  );
+}
+
+async function getUnreadCounts(userId, postId) {
+  const notifRows = await query(
+    `SELECT type, COUNT(*) AS cnt FROM notifications
+     WHERE userId = ? AND postId = ? AND isRead = 0
+     GROUP BY type`,
+    [userId, postId]
+  );
+  const byType = {};
+  let total = 0;
+  for (const row of notifRows) {
+    const n = Number(row.cnt);
+    byType[row.type] = n;
+    total += n;
+  }
+
+  // 聊天未读数: 只算他人的消息,自己的不计入未读
+  const markerRows = await query(
+    'SELECT lastReadAt FROM chat_read_markers WHERE userId = ? AND postId = ?',
+    [userId, postId]
+  );
+  let chatCount = 0;
+  if (markerRows[0]) {
+    const [chatRows] = await createPool().execute(
+      'SELECT COUNT(*) AS cnt FROM messages WHERE postId = ? AND createdAt > ? AND senderId != ?',
+      [postId, markerRows[0].lastReadAt, userId]
+    );
+    chatCount = Number(chatRows[0].cnt);
+  } else {
+    const [chatRows] = await createPool().execute(
+      'SELECT COUNT(*) AS cnt FROM messages WHERE postId = ? AND senderId != ?',
+      [postId, userId]
+    );
+    chatCount = Number(chatRows[0].cnt);
+  }
+
+  return { ...byType, chat: chatCount, total: total + chatCount };
+}
+
+async function markNotificationsRead(userId, postId, type) {
+  await query(
+    'UPDATE notifications SET isRead = 1 WHERE userId = ? AND postId = ? AND type = ? AND isRead = 0',
+    [userId, postId, type]
+  );
+}
+
+async function upsertChatReadMarker(userId, postId) {
+  await query(
+    `INSERT INTO chat_read_markers (userId, postId, lastReadAt) VALUES (?, ?, NOW())
+     ON DUPLICATE KEY UPDATE lastReadAt = NOW()`,
+    [userId, postId]
+  );
+}
+
 module.exports = {
   dbConfig,
   initDb,
@@ -405,5 +538,9 @@ module.exports = {
   getUserRank,
   insertMessage,
   getRecentMessages,
-  deleteMessagesByPost
+  deleteMessagesByPost,
+  insertNotification,
+  getUnreadCounts,
+  markNotificationsRead,
+  upsertChatReadMarker
 };

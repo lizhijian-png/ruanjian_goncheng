@@ -1,4 +1,9 @@
 <view class="container" wx:if="{{post}}">
+  <!-- 通知弹窗 -->
+  <view wx:if="{{showNotification}}" class="notif-popup" bindtap="onNotifTap">
+    <text class="notif-text">{{notificationContent}}</text>
+    <text class="notif-close" catchtap="dismissNotif">✕</text>
+  </view>
   <view wx:if="{{placingMode}}" class="placing-hint">点击帖子上要贴批注的位置</view>
   <view class="post-card detail-card" bindtap="onCardTap">
     <view class="tag">任务详情</view>
@@ -100,7 +105,10 @@
         wx:if="{{canOpenChat}}"
         class="ghost-btn action-btn"
         bindtap="openChat"
-      >进入聊天室</button>
+        style="position:relative;"
+      >进入聊天室
+        <view wx:if="{{unreadChat > 0}}" class="badge">{{unreadChat}}</view>
+      </button>
     </view>
 
     <!-- 完成证据 -->
@@ -156,6 +164,7 @@
     annoVisible="{{annoVisible}}"
     bind:pick="onToolPick"
     bind:togglevisible="onToggleAnnoVisible"
+    bind:opentrash="openTrash"
   />
 
   <view wx:if="{{showTextInput}}" class="anno-input-overlay">
@@ -176,10 +185,42 @@
   </view>
 
   <view wx:if="{{showAnnoDetail}}" class="anno-input-overlay" bindtap="closeAnnoDetail">
-    <view class="anno-detail-panel" catchtap="">
+    <view class="anno-detail-panel" catchtap="noop">
       <view class="anno-detail-author">{{activeAnno.nickname}}</view>
-      <view class="anno-detail-content">{{activeAnno.content}}</view>
+      <block wx:if="{{editingAnno}}">
+        <textarea class="anno-edit-textarea" value="{{editContent}}" bindinput="onEditContentInput" maxlength="200" auto-height catchtap="noop" />
+        <view class="anno-edit-btns">
+          <button class="ghost-btn evidence-btn" catchtap="cancelEditAnno">取消</button>
+          <button class="primary-btn evidence-btn" catchtap="saveEditContent">保存</button>
+        </view>
+      </block>
+      <block wx:else>
+        <view class="anno-detail-content">{{activeAnno.content}}</view>
+        <view wx:if="{{canDeleteActive && activeAnno.type === 'text'}}" class="anno-edit-entry" catchtap="startEditAnno">✏️ 编辑文字</view>
+      </block>
       <view class="muted">{{activeAnno.createdAt}}</view>
+      <view wx:if="{{canDeleteActive && activeAnno.type === 'text'}}" class="anno-rotate-row">
+        <text class="anno-rotate-label">颜色</text>
+        <view class="anno-color-swatches">
+          <view
+            wx:for="{{colorOptions}}" wx:key="*this"
+            class="anno-color-dot {{activeColor === item ? 'active' : ''}}"
+            style="background:{{item}}"
+            data-color="{{item}}"
+            catchtap="onPickColor"
+          ></view>
+        </view>
+      </view>
+      <view wx:if="{{canDeleteActive && activeAnno.type === 'text'}}" class="anno-rotate-row">
+        <text class="anno-rotate-label">字号 {{activeFontSize}}</text>
+        <slider
+          class="anno-rotate-slider"
+          min="20" max="80" step="2" value="{{activeFontSize}}"
+          block-size="20"
+          bindchanging="onFontSizeChanging"
+          bindchange="onFontSizeChange"
+        />
+      </view>
       <view wx:if="{{canDeleteActive}}" class="anno-rotate-row">
         <text class="anno-rotate-label">旋转 {{activeRotate}}°</text>
         <slider
@@ -200,6 +241,44 @@
           bindchange="onScaleChange"
         />
       </view>
+      <view class="anno-like-reply">
+        <view class="anno-like-row">
+          <view
+            class="anno-like-btn {{activeLiked ? 'liked' : ''}}"
+            catchtap="onToggleLike"
+          >{{activeLiked ? '❤️' : '🤍'}} 赞 {{activeLikeCount}}</view>
+          <text class="anno-reply-count">💬 {{activeReplies.length}} 条回复</text>
+        </view>
+
+        <view class="anno-reply-list">
+          <view wx:for="{{activeReplies}}" wx:key="id" class="anno-reply-item">
+            <view class="anno-reply-main">
+              <text class="anno-reply-author">{{item.nickname}}</text>
+              <text class="anno-reply-text">{{item.content}}</text>
+            </view>
+            <text
+              wx:if="{{item.userId === currentUserId || isPublisher}}"
+              class="anno-reply-del"
+              data-id="{{item.id}}"
+              catchtap="deleteReply"
+            >删除</text>
+          </view>
+        </view>
+
+        <view wx:if="{{isParticipant}}" class="anno-reply-input-row">
+          <input
+            class="anno-reply-input"
+            placeholder="写条回复..."
+            placeholder-class="placeholder"
+            value="{{replyInput}}"
+            bindinput="onReplyInput"
+            maxlength="200"
+            catchtap="noop"
+          />
+          <button class="primary-btn anno-reply-send" catchtap="submitReply" disabled="{{replyLoading}}">发送</button>
+        </view>
+      </view>
+
       <view class="evidence-form-btns">
         <button class="ghost-btn evidence-btn" bindtap="closeAnnoDetail">关闭</button>
         <button
@@ -207,6 +286,26 @@
           class="danger-btn evidence-btn"
           bindtap="deleteActiveAnnotation"
         >删除</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showTrash}}" class="anno-input-overlay" bindtap="closeTrash">
+    <view class="anno-detail-panel" catchtap="noop">
+      <view class="section-title">批注回收站</view>
+      <view wx:if="{{trashList.length === 0}}" class="muted empty-hint">回收站是空的</view>
+      <view class="anno-trash-list">
+        <view wx:for="{{trashList}}" wx:key="id" class="anno-trash-item">
+          <view class="anno-trash-main">
+            <view class="anno-trash-author">{{item.nickname}}</view>
+            <view class="anno-trash-content">{{item.content}}</view>
+            <view class="muted anno-trash-time">删于 {{item.deletedAt}}</view>
+          </view>
+          <view class="anno-trash-restore" data-id="{{item.id}}" catchtap="restoreFromTrash">恢复</view>
+        </view>
+      </view>
+      <view class="evidence-form-btns">
+        <button class="ghost-btn evidence-btn" bindtap="closeTrash">关闭</button>
       </view>
     </view>
   </view>

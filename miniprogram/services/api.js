@@ -120,8 +120,25 @@ function getPointLogs(userId) {
   return request({ url: `/api/users/${userId}/point-logs` });
 }
 
-function getAnnotations(postId) {
-  return request({ url: `/api/posts/${postId}/annotations` });
+// ================== 通知相关 API ==================
+
+function getUnreadCounts(userId, postId) {
+  return request({ url: `/api/users/${userId}/notifications/unread?postId=${encodeURIComponent(postId)}` });
+}
+
+function markNotificationsRead(userId, postId, type) {
+  return request({ url: `/api/users/${userId}/notifications/read`, method: 'POST', data: { postId, type } });
+}
+
+function markChatRead(postId, userId) {
+  return request({ url: `/api/chat/${postId}/read`, method: 'POST', data: { userId } });
+}
+
+// ================== 批注 ==================
+
+function getAnnotations(postId, viewerId) {
+  const q = viewerId ? `?viewerId=${encodeURIComponent(viewerId)}` : '';
+  return request({ url: `/api/posts/${postId}/annotations${q}` });
 }
 
 function createAnnotation(postId, payload) {
@@ -205,6 +222,56 @@ function updateAnnotationScale(postId, annId, userId, scale) {
   });
 }
 
+function updateAnnotationContent(postId, annId, userId, patch) {
+  // patch 可含 content / color / fontSize,各自可选
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}`,
+    method: 'PATCH',
+    data: { userId, ...patch }
+  });
+}
+
+function toggleAnnotationLike(postId, annId, userId) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}/like`,
+    method: 'POST',
+    data: { userId }
+  });
+}
+
+function getAnnotationReplies(postId, annId) {
+  return request({ url: `/api/posts/${postId}/annotations/${annId}/replies` });
+}
+
+function createAnnotationReply(postId, annId, userId, content) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}/replies`,
+    method: 'POST',
+    data: { userId, content }
+  });
+}
+
+function deleteAnnotationReply(postId, annId, replyId, userId) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}/replies/${replyId}`,
+    method: 'DELETE',
+    data: { userId }
+  });
+}
+
+function getAnnotationTrash(postId, viewerId) {
+  const q = viewerId ? `?viewerId=${encodeURIComponent(viewerId)}` : '';
+  return request({ url: `/api/posts/${postId}/annotations/trash${q}` });
+}
+
+function restoreAnnotation(postId, annId, userId) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}/restore`,
+    method: 'POST',
+    data: { userId }
+  });
+}
+
 module.exports = {
   login,
   bind,
@@ -228,6 +295,9 @@ module.exports = {
   requestComplete,
   getEvaluationsReceived,
   getPointLogs,
+  getUnreadCounts,
+  markNotificationsRead,
+  markChatRead,
   getAnnotations,
   createAnnotation,
   deleteAnnotation,
@@ -237,5 +307,12 @@ module.exports = {
   getChatHistory,
   updateAnnotationPosition,
   updateAnnotationRotate,
-  updateAnnotationScale
+  updateAnnotationScale,
+  updateAnnotationContent,
+  toggleAnnotationLike,
+  getAnnotationReplies,
+  createAnnotationReply,
+  deleteAnnotationReply,
+  getAnnotationTrash,
+  restoreAnnotation
 };

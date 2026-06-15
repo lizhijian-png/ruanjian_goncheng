@@ -19,9 +19,11 @@ Page({
   },
 
   _postId: '',
+  _socketTask: null,
   _socketOpen: false,
   _reconnectCount: 0,
   _maxReconnect: 3,
+  _deliberateClose: false,
 
   async onLoad(options) {
     const app = getApp();
@@ -42,6 +44,12 @@ Page({
       wx.showToast({ title: '加载历史消息失败', icon: 'none' });
     }
 
+    // 进入聊天页时,标记 new_chat 通知为已读,并刷新聊天已读标记
+    try {
+      await api.markNotificationsRead(currentUserId, postId, 'new_chat');
+      await api.markChatRead(postId, currentUserId);
+    } catch (e) { /* 静默 */ }
+
     this._connect();
   },
 
@@ -51,19 +59,20 @@ Page({
     const wsBase = config.apiBaseUrl.replace(/^http/, 'ws');
     const wsUrl = `${wsBase}/chat?postId=${encodeURIComponent(postId)}&userId=${encodeURIComponent(currentUserId)}`;
 
-    wx.connectSocket({ url: wsUrl });
+    this._socketTask = wx.connectSocket({ url: wsUrl });
 
-    wx.onSocketOpen(() => {
+    this._socketTask.onOpen(() => {
       this._socketOpen = true;
       this._reconnectCount = 0;
     });
 
-    wx.onSocketMessage((res) => {
+    this._socketTask.onMessage((res) => {
       let msg;
       try { msg = JSON.parse(res.data); } catch { return; }
 
       if (msg.type === 'room_closed') {
         this._socketOpen = false;
+        this._deliberateClose = true;
         wx.closeSocket();
         this.setData({ isClosed: true });
         return;
@@ -78,15 +87,15 @@ Page({
       }
     });
 
-    wx.onSocketClose(() => {
+    this._socketTask.onClose(() => {
       this._socketOpen = false;
-      if (!this.data.isClosed && this._reconnectCount < this._maxReconnect) {
+      if (!this._deliberateClose && !this.data.isClosed && this._reconnectCount < this._maxReconnect) {
         this._reconnectCount++;
         setTimeout(() => this._connect(), 2000);
       }
     });
 
-    wx.onSocketError(() => {
+    this._socketTask.onError(() => {
       this._socketOpen = false;
     });
   },
@@ -111,8 +120,12 @@ Page({
   },
 
   onUnload() {
+    this._deliberateClose = true;
     if (this._socketOpen) {
       wx.closeSocket();
     }
+    this._socketTask = null;
+    // 退出聊天页时标记已读,避免会话期间的消息在返回后显示未读标点
+    api.markChatRead(this.data.postId, this.data.currentUserId).catch(() => {});
   }
 });

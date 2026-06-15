@@ -8,5 +8,5 @@
     catchtouchstart="onTouchStart"
     catchtouchmove="onTouchMove"
     catchtouchend="onTouchEnd"
-  >{{item.content}}</view>
+  >{{item.content}}<text wx:if="{{item.hasBadge}}" class="anno-badge">{{item.badge}}</text></view>
 </view>
