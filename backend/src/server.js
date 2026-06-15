@@ -183,6 +183,29 @@ async function settlePost(postId) {
   }
 }
 
+async function maybeSettleEarly(postId) {
+  const rows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
+  const post = rows[0];
+  if (!post || post.status !== '待评价') return;
+
+  const buddyRows = await query('SELECT userId FROM post_buddies WHERE postId = ?', [postId]);
+  const participants = [post.publisherId, ...buddyRows.map(b => b.userId)];
+  const N = participants.length;
+  const required = N * (N - 1);
+
+  if (required > 0) {
+    const placeholders = participants.map(() => '?').join(',');
+    const [{ actual }] = await query(
+      `SELECT COUNT(*) AS actual FROM completion_votes
+       WHERE postId = ? AND voterId IN (${placeholders}) AND targetId IN (${placeholders})`,
+      [postId, ...participants, ...participants]
+    );
+    if (Number(actual) < required) return;
+  }
+
+  await settlePost(postId);
+}
+
 function calcRecommendedScore(post, publisherUser, preferenceMap) {
   const cr = publisherUser ? (publisherUser.completionRate || 0) : 0;
   const pts = publisherUser ? Math.min((publisherUser.points || 0) / 10, 100) : 0;
