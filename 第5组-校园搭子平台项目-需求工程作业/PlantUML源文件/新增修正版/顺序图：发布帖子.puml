@@ -1,14 +1,16 @@
 @startuml
 actor 发布者 as User
-participant "小程序端 (api.js)" as Frontend
-participant "服务端 (/api/posts)" as Backend
+participant "小程序端" as Frontend
+participant "服务端 API" as Backend
 database "MySQL数据库" as DB
+actor 管理员 as Admin
 
+== 任务发布阶段 ==
 User -> Frontend : 填写标题/内容/悬赏等并发布
 activate Frontend
 Frontend -> Backend : POST /api/posts (附带JSON数据)
 activate Backend
-Backend -> DB : INSERT INTO posts \n(初始status设为'招募中')
+Backend -> DB : INSERT INTO posts \n(初始status='招募中', auditStatus='正常')
 activate DB
 DB --> Backend : 插入成功
 deactivate DB
@@ -16,4 +18,30 @@ Backend --> Frontend : 返回新创建的帖子信息映射
 deactivate Backend
 Frontend --> User : 提示"发布成功"并跳转至详情页
 deactivate Frontend
+
+== 后台管控与审核阶段 (异步/后置) ==
+Admin -> Frontend : 进入管理后台查看全量帖子
+activate Frontend
+Frontend -> Backend : GET /api/admin/posts
+activate Backend
+Backend -> DB : SELECT * FROM posts (无过滤查询)
+activate DB
+DB --> Backend : 返回全量列表
+deactivate DB
+Backend --> Frontend : 渲染管理列表
+deactivate Backend
+
+Admin -> Frontend : 发现违规内容，点击"设为违规"
+Frontend -> Backend : PUT /api/admin/posts/:id/audit-status \n{ auditStatus: '违规' }
+activate Backend
+Backend -> DB : UPDATE posts SET auditStatus = '违规'
+activate DB
+DB --> Backend : 更新成功
+deactivate DB
+Backend --> Frontend : 返回修改成功响应
+deactivate Backend
+Frontend --> Admin : 提示"已标记为违规"
+deactivate Frontend
+
+note right of Backend: 被标记为违规的帖子\n将在普通用户的广场列表(Feed)中被系统自动拦截隐藏
 @enduml
