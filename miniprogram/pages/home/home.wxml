@@ -88,6 +88,15 @@
   </view>
 </view>
 
+<!-- 通知弹窗 -->
+<view wx:if="{{showHomeNotif}}" class="home-notif-popup" bindtap="onHomeNotifTap">
+  <view class="home-notif-inner">
+    <view class="home-notif-label">{{homeNotifPostTitle}}</view>
+    <view class="home-notif-body">{{homeNotifContent}}</view>
+  </view>
+  <view class="home-notif-close" catchtap="dismissHomeNotif">✕</view>
+</view>
+
 <!-- 遮罩 -->
 <view class="filter-mask {{filterVisible ? 'mask-visible' : ''}}" bindtap="closeFilter"></view>
 

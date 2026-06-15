@@ -134,6 +134,14 @@ function markChatRead(postId, userId) {
   return request({ url: `/api/chat/${postId}/read`, method: 'POST', data: { userId } });
 }
 
+function getAllUnreadCounts(userId) {
+  return request({ url: `/api/users/${userId}/notifications/unread-all` });
+}
+
+function markAllNotificationsRead(userId, type) {
+  return request({ url: `/api/users/${userId}/notifications/read-all`, method: 'POST', data: { type } });
+}
+
 // ================== 批注 ==================
 
 function getAnnotations(postId, viewerId) {
@@ -296,6 +304,7 @@ module.exports = {
   getEvaluationsReceived,
   getPointLogs,
   getUnreadCounts,
+  getAllUnreadCounts,
   markNotificationsRead,
   markChatRead,
   getAnnotations,
@@ -314,5 +323,6 @@ module.exports = {
   createAnnotationReply,
   deleteAnnotationReply,
   getAnnotationTrash,
-  restoreAnnotation
+  restoreAnnotation,
+  markAllNotificationsRead
 };
