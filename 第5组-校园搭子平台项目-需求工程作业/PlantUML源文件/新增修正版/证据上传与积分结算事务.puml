@@ -1,0 +1,27 @@
+@startuml
+actor 参与者 as Buddy
+participant "小程序端" as Frontend
+participant "服务端 (syncPostStatus/settlePost)" as Backend
+database "MySQL数据库" as DB
+
+' 提交证据部分
+Buddy -> Frontend : 上传证据内容
+Frontend -> Backend : POST /api/posts/:id/evidence
+activate Backend
+Backend -> DB : INSERT INTO evidences
+DB --> Backend : 写入成功
+Backend --> Frontend : 返回 HTTP 201
+deactivate Backend
+
+' 异步/触发式 状态流转与结算
+note over Backend, DB: 满足条件且过了评价截止时间时触发结算
+Backend -> DB : 获取数据库连接并开启事务 (BEGIN)
+activate DB
+DB -> DB : UPDATE posts SET status = '已完成'
+DB -> DB : UPDATE users SET points = points + reward (发布者)
+DB -> DB : UPDATE users SET points = points + reward (所有搭子)
+DB --> Backend : 事务提交 (COMMIT)
+deactivate DB
+
+Backend -> DB : UPDATE users SET completionRate = ... (重算完成率)
+@enduml

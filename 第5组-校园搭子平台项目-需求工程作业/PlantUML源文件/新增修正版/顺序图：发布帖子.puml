@@ -1,0 +1,19 @@
+@startuml
+actor 发布者 as User
+participant "小程序端 (api.js)" as Frontend
+participant "服务端 (/api/posts)" as Backend
+database "MySQL数据库" as DB
+
+User -> Frontend : 填写标题/内容/悬赏等并发布
+activate Frontend
+Frontend -> Backend : POST /api/posts (附带JSON数据)
+activate Backend
+Backend -> DB : INSERT INTO posts \n(初始status设为'招募中')
+activate DB
+DB --> Backend : 插入成功
+deactivate DB
+Backend --> Frontend : 返回新创建的帖子信息映射
+deactivate Backend
+Frontend --> User : 提示"发布成功"并跳转至详情页
+deactivate Frontend
+@enduml

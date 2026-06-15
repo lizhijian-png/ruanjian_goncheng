@@ -1,0 +1,82 @@
+@startuml
+package "前端 (微信小程序客户端)" {
+  class 页面视图 {
+    +广场页 (Feed)
+    +帖子详情页 (PostDetail)
+    +个人主页 (Profile)
+    +管理后台 (Admin)
+  }
+  class API请求层 (api.js) {
+    +getFeed()
+    +createPost()
+    +submitEvidence()
+    +adminLogin()
+  }
+}
+
+package "后端 (Node.js / Express)" {
+  class Auth路由模块 {
+    +login()
+    +bind()
+  }
+  class Post路由模块 {
+    +createPost()
+    +joinPost/quitPost()
+    +evaluate()
+  }
+  class User路由模块 {
+    +getProfile()
+    +getRanking()
+  }
+  class 数据库服务 (db.js) {
+    +query()
+    +withTransaction()
+    +syncPostStatus()
+    +settlePost()
+  }
+}
+
+package "数据模型 (MySQL)" {
+  class Users {
+    -id (主键)
+    -openid
+    -nickname
+    -points (积分)
+    -completionRate
+  }
+  class Posts {
+    -id (主键)
+    -publisherId
+    -reward / penalty
+    -status (招募中/进行中等)
+    -auditStatus (审核状态)
+  }
+  class Post_Buddies {
+    -postId
+    -userId
+  }
+  class Evidences {
+    -submitterId
+    -value (证据内容)
+  }
+  class Evaluations {
+    -fromId
+    -toId
+    -score
+  }
+}
+
+页面视图 --> API请求层
+API请求层 --> Auth路由模块
+API请求层 --> Post路由模块
+API请求层 --> User路由模块
+Auth路由模块 --> 数据库服务
+Post路由模块 --> 数据库服务
+User路由模块 --> 数据库服务
+
+数据库服务 --> Users
+数据库服务 --> Posts
+数据库服务 --> Post_Buddies
+数据库服务 --> Evidences
+数据库服务 --> Evaluations
+@enduml
