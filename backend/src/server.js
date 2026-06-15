@@ -197,8 +197,8 @@ async function maybeSettleEarly(postId) {
   if (required > 0) {
     const placeholders = participants.map(() => '?').join(',');
     const [{ actual }] = await query(
-      `SELECT COUNT(*) AS actual FROM completion_votes
-       WHERE postId = ? AND voterId IN (${placeholders}) AND targetId IN (${placeholders})`,
+      `SELECT COUNT(*) AS actual FROM evaluations
+       WHERE postId = ? AND fromId IN (${placeholders}) AND toId IN (${placeholders})`,
       [postId, ...participants, ...participants]
     );
     if (Number(actual) < required) return;
@@ -923,6 +923,7 @@ app.post('/api/posts/:id/evaluate', async (req, res, next) => {
     );
 
     await updateUserAvgScore(toId);
+    await maybeSettleEarly(req.params.id);
     const finalPost = (await query('SELECT * FROM posts WHERE id = ?', [req.params.id]))[0];
     res.status(201).json({ post: mapPost(finalPost) });
   } catch (error) {
@@ -969,7 +970,6 @@ app.post('/api/posts/:id/completion-vote', async (req, res, next) => {
       [voteId, req.params.id, userId, targetId, vote]
     );
 
-    await maybeSettleEarly(req.params.id);
     res.status(204).end();
   } catch (error) {
     next(error);
