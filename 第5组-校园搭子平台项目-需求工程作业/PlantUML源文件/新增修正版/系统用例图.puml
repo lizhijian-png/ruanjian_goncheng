@@ -1,34 +1,42 @@
 @startuml
 left to right direction
+
 actor "普通用户/搭子" as User
 actor "任务发起方" as Initiator
 actor "系统管理员" as Admin
 
-Initiator |> User
+' 语义上使用 <|-- 表示继承
+Initiator <|-- User
 
 package "账号与主页模块" {
-  User --> (微信一键授权注册/登录)
-  User --> (修改个人昵称与头像)
-  User --> (查看AI智能评价)
+  usecase "微信一键授权注册/登录" as UC1
+  usecase "修改个人昵称与头像" as UC2
+  usecase "查看AI智能评价" as UC3
 }
 
 package "帖子大厅与流转模块" {
-  Initiator --> (发布任务贴)
-  Initiator --> (手动确认完成 / 放弃任务)
-  User --> (列表查询与个性化过滤)
-  User --> (加入 / 退出招募中任务)
-  User --> (上传任务执行证据)
-  User --> (任务结束后双向打分评价)
+  usecase "发布任务贴" as UC4
+  usecase "确认完成 / 放弃任务" as UC5
+  usecase "列表查询与过滤" as UC6
+  usecase "加入 / 退出任务" as UC7
+  usecase "上传任务执行证据" as UC8
+  usecase "任务结束后双向打分" as UC9
 }
 
-package "积分与推荐模块" {
-  User --> (查看系统实时积分排行榜)
-  User --> (获取千人千面的动态推荐分)
-}
+' 连线部分
+User --> UC1
+User --> UC2
+User --> UC3
+User --> UC6
+User --> UC7
+User --> UC8
+User --> UC9
 
-package "后台管理模块" {
-  Admin --> (管理员专属口令登录)
-  Admin --> (查看包含隐藏记录的全量列表)
-  Admin --> (标记违规任务 / 修改审核状态)
-}
+Initiator --> UC4
+Initiator --> UC5
+
+Admin --> (管理员专属口令登录)
+Admin --> (查看全量列表)
+Admin --> (标记违规任务 / 修改审核状态)
+
 @enduml
