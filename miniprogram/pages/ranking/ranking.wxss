@@ -221,3 +221,13 @@
   font-size: 26rpx;
   padding: 80rpx 0;
 }
+
+.podium-me {
+  outline: 4rpx solid #ff8c42;
+  border-radius: 16rpx;
+}
+
+.rank-row-me {
+  background: #fff3e0;
+  border-left: 6rpx solid #ff8c42;
+}

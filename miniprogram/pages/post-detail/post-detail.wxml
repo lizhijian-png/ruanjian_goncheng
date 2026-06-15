@@ -1,5 +1,6 @@
 <view class="container" wx:if="{{post}}">
-  <view class="post-card detail-card">
+  <view wx:if="{{placingMode}}" class="placing-hint">点击帖子上要贴批注的位置</view>
+  <view class="post-card detail-card" bindtap="onCardTap">
     <view class="tag">任务详情</view>
     <view class="publisher-bar">
       <image
@@ -14,6 +15,16 @@
     </view>
     <view class="detail-title">{{post.title}}</view>
     <view class="detail-content">{{post.content}}</view>
+    <annotation-layer
+      annotations="{{annotations}}"
+      currentUserId="{{currentUserId}}"
+      publisherId="{{post.publisherId}}"
+      cardWidth="{{cardWidth}}"
+      cardHeight="{{cardHeight}}"
+      visible="{{annoVisible}}"
+      bind:tapannotation="onTapAnnotation"
+      bind:dragend="onAnnotationDragEnd"
+    />
 
     <view class="detail-grid">
       <view class="detail-chip">奖励 +{{post.reward}}</view>
@@ -67,11 +78,17 @@
       <button wx:if="{{isBuddy && post.status === '进行中' && hasRequested}}" class="ghost-btn action-btn" disabled>已申请完成</button>
 
       <!-- 参与者：待评价可提交证据 -->
-      <button wx:if="{{canSubmitEvidence && !showEvidenceForm}}" class="ghost-btn action-btn" bindtap="openEvidenceForm">+ 提交文字证据</button>
+      <button wx:if="{{canSubmitEvidence}}" class="ghost-btn action-btn" bindtap="openEvidencePage">+ 提交证据</button>
 
       <!-- 参与者：待评价可评价他人 -->
       <view wx:if="{{canEvaluate}}" class="eval-deadline-hint">评价窗口：{{evalDeadlineText}}</view>
       <button wx:if="{{canEvaluate}}" class="primary-btn action-btn" bindtap="openPersonPicker">评价</button>
+      <!-- 聊天室入口 -->
+      <button
+        wx:if="{{canOpenChat}}"
+        class="ghost-btn action-btn"
+        bindtap="openChat"
+      >进入聊天室</button>
     </view>
 
     <!-- 完成证据 -->
@@ -80,21 +97,6 @@
     <block wx:for="{{evidenceList}}" wx:key="index">
       <view class="evidence-item">{{item.submitterName}}：{{item.value}}</view>
     </block>
-
-    <view wx:if="{{showEvidenceForm}}" class="evidence-form">
-      <view class="label">证据内容</view>
-      <textarea
-        class="evidence-textarea"
-        placeholder="描述你的完成情况..."
-        placeholder-class="placeholder"
-        bindinput="onEvidenceInput"
-        value="{{evidenceInput}}"
-      />
-      <view class="evidence-form-btns">
-        <button class="ghost-btn evidence-btn" bindtap="closeEvidenceForm">取消</button>
-        <button class="primary-btn evidence-btn" bindtap="submitEvidence">提交</button>
-      </view>
-    </view>
 
     <!-- 人员选择弹层 -->
     <view wx:if="{{showPersonPicker}}" class="person-picker-overlay">
@@ -113,34 +115,6 @@
           </view>
         </block>
         <button class="ghost-btn person-picker-close" bindtap="closePersonPicker">关闭</button>
-      </view>
-    </view>
-
-    <!-- 评价表单（对某人） -->
-    <view wx:if="{{showEvalForm}}" class="eval-form">
-      <view class="section-title">评价 {{evalTargetName}}</view>
-      <view class="eval-score-row">
-        <view class="label">评分：{{evalScore}} 分</view>
-        <slider
-          class="eval-slider"
-          min="1" max="5" step="1"
-          value="{{evalScore}}"
-          show-value="{{false}}"
-          activeColor="#f97316"
-          bindchange="onEvalScoreChange"
-        />
-      </view>
-      <view class="label">评价内容</view>
-      <textarea
-        class="evidence-textarea"
-        placeholder="描述对方的完成情况和配合度..."
-        placeholder-class="placeholder"
-        bindinput="onEvalContentInput"
-        value="{{evalContent}}"
-      />
-      <view class="evidence-form-btns">
-        <button class="ghost-btn evidence-btn" bindtap="backToPersonPicker">返回</button>
-        <button class="primary-btn evidence-btn" bindtap="submitEvaluation">提交</button>
       </view>
     </view>
 
@@ -163,5 +137,156 @@
         <view class="muted">{{item.content}}</view>
       </view>
     </block>
+  </view>
+
+  <annotation-toolbox
+    wx:if="{{isParticipant}}"
+    annoVisible="{{annoVisible}}"
+    bind:pick="onToolPick"
+    bind:togglevisible="onToggleAnnoVisible"
+    bind:opentrash="openTrash"
+  />
+
+  <view wx:if="{{showTextInput}}" class="anno-input-overlay">
+    <view class="anno-input-panel">
+      <view class="section-title">写批注</view>
+      <textarea
+        class="evidence-textarea"
+        placeholder="输入批注文字..."
+        placeholder-class="placeholder"
+        bindinput="onTextInputChange"
+        value="{{textInputValue}}"
+      />
+      <view class="evidence-form-btns">
+        <button class="ghost-btn evidence-btn" bindtap="cancelTextAnnotation">取消</button>
+        <button class="primary-btn evidence-btn" bindtap="confirmTextAnnotation">贴上</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showAnnoDetail}}" class="anno-input-overlay" bindtap="closeAnnoDetail">
+    <view class="anno-detail-panel" catchtap="noop">
+      <view class="anno-detail-author">{{activeAnno.nickname}}</view>
+      <block wx:if="{{editingAnno}}">
+        <textarea class="anno-edit-textarea" value="{{editContent}}" bindinput="onEditContentInput" maxlength="200" auto-height catchtap="noop" />
+        <view class="anno-edit-btns">
+          <button class="ghost-btn evidence-btn" catchtap="cancelEditAnno">取消</button>
+          <button class="primary-btn evidence-btn" catchtap="saveEditContent">保存</button>
+        </view>
+      </block>
+      <block wx:else>
+        <view class="anno-detail-content">{{activeAnno.content}}</view>
+        <view wx:if="{{canDeleteActive && activeAnno.type === 'text'}}" class="anno-edit-entry" catchtap="startEditAnno">✏️ 编辑文字</view>
+      </block>
+      <view class="muted">{{activeAnno.createdAt}}</view>
+      <view wx:if="{{canDeleteActive && activeAnno.type === 'text'}}" class="anno-rotate-row">
+        <text class="anno-rotate-label">颜色</text>
+        <view class="anno-color-swatches">
+          <view
+            wx:for="{{colorOptions}}" wx:key="*this"
+            class="anno-color-dot {{activeColor === item ? 'active' : ''}}"
+            style="background:{{item}}"
+            data-color="{{item}}"
+            catchtap="onPickColor"
+          ></view>
+        </view>
+      </view>
+      <view wx:if="{{canDeleteActive && activeAnno.type === 'text'}}" class="anno-rotate-row">
+        <text class="anno-rotate-label">字号 {{activeFontSize}}</text>
+        <slider
+          class="anno-rotate-slider"
+          min="20" max="80" step="2" value="{{activeFontSize}}"
+          block-size="20"
+          bindchanging="onFontSizeChanging"
+          bindchange="onFontSizeChange"
+        />
+      </view>
+      <view wx:if="{{canDeleteActive}}" class="anno-rotate-row">
+        <text class="anno-rotate-label">旋转 {{activeRotate}}°</text>
+        <slider
+          class="anno-rotate-slider"
+          min="-180" max="180" value="{{activeRotate}}"
+          block-size="20"
+          bindchanging="onRotateChanging"
+          bindchange="onRotateChange"
+        />
+      </view>
+      <view wx:if="{{canDeleteActive}}" class="anno-rotate-row">
+        <text class="anno-rotate-label">大小 {{activeScale}}x</text>
+        <slider
+          class="anno-rotate-slider"
+          min="0.5" max="2" step="0.1" value="{{activeScale}}"
+          block-size="20"
+          bindchanging="onScaleChanging"
+          bindchange="onScaleChange"
+        />
+      </view>
+      <view class="anno-like-reply">
+        <view class="anno-like-row">
+          <view
+            class="anno-like-btn {{activeLiked ? 'liked' : ''}}"
+            catchtap="onToggleLike"
+          >{{activeLiked ? '❤️' : '🤍'}} 赞 {{activeLikeCount}}</view>
+          <text class="anno-reply-count">💬 {{activeReplies.length}} 条回复</text>
+        </view>
+
+        <view class="anno-reply-list">
+          <view wx:for="{{activeReplies}}" wx:key="id" class="anno-reply-item">
+            <view class="anno-reply-main">
+              <text class="anno-reply-author">{{item.nickname}}</text>
+              <text class="anno-reply-text">{{item.content}}</text>
+            </view>
+            <text
+              wx:if="{{item.userId === currentUserId || isPublisher}}"
+              class="anno-reply-del"
+              data-id="{{item.id}}"
+              catchtap="deleteReply"
+            >删除</text>
+          </view>
+        </view>
+
+        <view wx:if="{{isParticipant}}" class="anno-reply-input-row">
+          <input
+            class="anno-reply-input"
+            placeholder="写条回复..."
+            placeholder-class="placeholder"
+            value="{{replyInput}}"
+            bindinput="onReplyInput"
+            maxlength="200"
+            catchtap="noop"
+          />
+          <button class="primary-btn anno-reply-send" catchtap="submitReply" disabled="{{replyLoading}}">发送</button>
+        </view>
+      </view>
+
+      <view class="evidence-form-btns">
+        <button class="ghost-btn evidence-btn" bindtap="closeAnnoDetail">关闭</button>
+        <button
+          wx:if="{{canDeleteActive}}"
+          class="danger-btn evidence-btn"
+          bindtap="deleteActiveAnnotation"
+        >删除</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showTrash}}" class="anno-input-overlay" bindtap="closeTrash">
+    <view class="anno-detail-panel" catchtap="noop">
+      <view class="section-title">批注回收站</view>
+      <view wx:if="{{trashList.length === 0}}" class="muted empty-hint">回收站是空的</view>
+      <view class="anno-trash-list">
+        <view wx:for="{{trashList}}" wx:key="id" class="anno-trash-item">
+          <view class="anno-trash-main">
+            <view class="anno-trash-author">{{item.nickname}}</view>
+            <view class="anno-trash-content">{{item.content}}</view>
+            <view class="muted anno-trash-time">删于 {{item.deletedAt}}</view>
+          </view>
+          <view class="anno-trash-restore" data-id="{{item.id}}" catchtap="restoreFromTrash">恢复</view>
+        </view>
+      </view>
+      <view class="evidence-form-btns">
+        <button class="ghost-btn evidence-btn" bindtap="closeTrash">关闭</button>
+      </view>
+    </view>
   </view>
 </view>

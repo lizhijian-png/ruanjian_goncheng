@@ -1,1 +1,13 @@
 backend/.env
+
+# 依赖包,不入库
+node_modules/
+
+# 可视化brainstorm临时文件
+.superpowers/
+
+# 个人开发记录(仅本人留存,不提交)
+个人开发记录/
+
+# Claude 本地配置
+.claude/

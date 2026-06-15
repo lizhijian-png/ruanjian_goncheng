@@ -250,6 +250,25 @@
   font-size: 22rpx;
 }
 
+.score-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 4rpx;
+}
+
+.score-value {
+  color: #ff8c42;
+  font-weight: bold;
+  font-size: 30rpx;
+}
+
+.score-hint {
+  color: #ff8c42;
+  font-size: 24rpx;
+  margin-left: 8rpx;
+}
+
 .admin-btn {
   margin: 40rpx auto;
   width: fit-content;

@@ -56,6 +56,9 @@ Page({
   goPublish() {
     wx.navigateTo({ url: '/pages/publish/publish' });
   },
+  goScoreHistory() {
+    wx.navigateTo({ url: '/pages/score-history/score-history' });
+  },
   goPostDetail(event) {
     const { id } = event.currentTarget.dataset;
     wx.navigateTo({ url: `/pages/post-detail/post-detail?id=${id}` });

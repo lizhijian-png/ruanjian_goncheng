@@ -6,7 +6,11 @@
     "pages/ranking/ranking",
     "pages/profile/profile",
     "pages/post-detail/post-detail",
-    "pages/admin/admin"
+    "pages/score-history/score-history",
+    "pages/admin/admin",
+    "pages/evaluate/evaluate",
+    "pages/submit-evidence/submit-evidence",
+    "pages/chat/chat"
   ],
   "tabBar": {
     "color": "#8b6f88",

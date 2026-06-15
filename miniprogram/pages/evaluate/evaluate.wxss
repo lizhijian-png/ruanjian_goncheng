@@ -1,0 +1,122 @@
+.container {
+  padding: 24rpx 24rpx 48rpx;
+  background: #fffaf4;
+  min-height: 100vh;
+}
+
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,244,238,0.92));
+  border-radius: 28rpx;
+  padding: 32rpx;
+  margin-bottom: 24rpx;
+  border: 1rpx solid rgba(255,122,89,0.12);
+}
+
+.card-title {
+  font-size: 32rpx;
+  font-weight: 700;
+  margin-bottom: 20rpx;
+  color: #1e293b;
+}
+
+.evidence-text {
+  font-size: 28rpx;
+  line-height: 1.8;
+  color: #334155;
+}
+
+.empty-hint {
+  font-size: 26rpx;
+  padding: 8rpx 0;
+}
+
+.eval-score-row {
+  margin: 14rpx 0 8rpx;
+}
+
+.eval-slider {
+  margin-top: 8rpx;
+}
+
+.eval-textarea {
+  width: 100%;
+  min-height: 180rpx;
+  background: rgba(255,250,244,0.9);
+  border: 1rpx solid rgba(255,122,89,0.16);
+  border-radius: 16rpx;
+  padding: 20rpx;
+  box-sizing: border-box;
+  font-size: 28rpx;
+  line-height: 1.7;
+  margin: 14rpx 0 20rpx;
+}
+
+.form-btns {
+  display: flex;
+  gap: 20rpx;
+}
+
+.form-btn {
+  flex: 1;
+  height: 76rpx;
+  font-size: 28rpx;
+}
+
+.completion-label {
+  margin-top: 20rpx;
+}
+
+.completion-vote-row {
+  display: flex;
+  gap: 20rpx;
+  margin: 14rpx 0 4rpx;
+}
+
+.vote-btn {
+  flex: 1;
+  height: 72rpx;
+  line-height: 72rpx;
+  text-align: center;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+  border: 2rpx solid rgba(255,122,89,0.25);
+  color: #64748b;
+  background: rgba(255,255,255,0.7);
+}
+
+.vote-btn--active-complete {
+  background: #dcfce7;
+  border-color: #22c55e;
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.vote-btn--active-incomplete {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.vote-btn--disabled {
+  opacity: 0.5;
+}
+
+.evidence-img-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 16rpx;
+}
+
+.evidence-img-thumb {
+  width: 180rpx;
+  height: 180rpx;
+  border-radius: 12rpx;
+  background: #f1f5f9;
+}
+
+.completion-hint {
+  font-size: 24rpx;
+  margin-bottom: 20rpx;
+}

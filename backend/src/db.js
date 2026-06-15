@@ -193,6 +193,7 @@ async function createTables() {
       submitterName VARCHAR(100) NOT NULL DEFAULT '',
       type VARCHAR(50) NOT NULL,
       value TEXT NOT NULL,
+      imageUrls TEXT NULL,
       createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE KEY uq_evidence_post_user (postId, submitterId),
       CONSTRAINT fk_evidences_post FOREIGN KEY (postId) REFERENCES posts(id) ON DELETE CASCADE
@@ -230,6 +231,11 @@ async function createTables() {
         ADD COLUMN submitterName VARCHAR(100) NOT NULL DEFAULT '' AFTER submitterId
     `);
   }
+  const evidenceImageUrlsCol = await query(`SHOW COLUMNS FROM evidences LIKE 'imageUrls'`);
+  if (evidenceImageUrlsCol.length === 0) {
+    await query(`ALTER TABLE evidences ADD COLUMN imageUrls TEXT NULL AFTER value`);
+  }
+
   const evidenceUniqueKey = await query(`
     SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS
     WHERE TABLE_SCHEMA = DATABASE()
@@ -272,6 +278,122 @@ async function createTables() {
   if (evalToIdIdx.length === 0) {
     await query(`ALTER TABLE evaluations ADD INDEX idx_eval_toId (toId)`);
   }
+
+  // 积分历史记录表
+  await query(`
+    CREATE TABLE IF NOT EXISTS point_logs (
+      id VARCHAR(64) PRIMARY KEY,
+      userId VARCHAR(64) NOT NULL,
+      delta INT NOT NULL,
+      balance INT NOT NULL,
+      reason VARCHAR(255) NOT NULL,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_point_logs_userId (userId),
+      CONSTRAINT fk_pl_user FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  // 帖子批注表(文字批注 + 表情印章)
+  await query(`
+    CREATE TABLE IF NOT EXISTS annotations (
+      id          VARCHAR(64) PRIMARY KEY,
+      postId      VARCHAR(64) NOT NULL,
+      userId      VARCHAR(64) NOT NULL,
+      nickname    VARCHAR(100) NOT NULL,
+      type        VARCHAR(20) NOT NULL,
+      content     TEXT NOT NULL,
+      style       TEXT NOT NULL,
+      x           DECIMAL(5,2) NOT NULL,
+      y           DECIMAL(5,2) NOT NULL,
+      createdAt   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      deletedAt   DATETIME NULL DEFAULT NULL,
+      INDEX idx_annotations_post (postId),
+      CONSTRAINT fk_annotations_post FOREIGN KEY (postId)
+        REFERENCES posts(id) ON DELETE CASCADE,
+      CONSTRAINT fk_annotations_user FOREIGN KEY (userId)
+        REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  // 批注点赞表(一个用户对一条批注最多一个赞,UNIQUE 实现切换)
+  await query(`
+    CREATE TABLE IF NOT EXISTS annotation_likes (
+      id          VARCHAR(64) PRIMARY KEY,
+      annId       VARCHAR(64) NOT NULL,
+      userId      VARCHAR(64) NOT NULL,
+      createdAt   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_anno_like (annId, userId),
+      INDEX idx_anno_like_ann (annId),
+      CONSTRAINT fk_anno_like_ann FOREIGN KEY (annId)
+        REFERENCES annotations(id) ON DELETE CASCADE,
+      CONSTRAINT fk_anno_like_user FOREIGN KEY (userId)
+        REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  // 批注回复表(一条批注多条回复)
+  await query(`
+    CREATE TABLE IF NOT EXISTS annotation_replies (
+      id          VARCHAR(64) PRIMARY KEY,
+      annId       VARCHAR(64) NOT NULL,
+      userId      VARCHAR(64) NOT NULL,
+      nickname    VARCHAR(100) NOT NULL,
+      content     VARCHAR(200) NOT NULL,
+      createdAt   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_anno_reply_ann (annId),
+      CONSTRAINT fk_anno_reply_ann FOREIGN KEY (annId)
+        REFERENCES annotations(id) ON DELETE CASCADE,
+      CONSTRAINT fk_anno_reply_user FOREIGN KEY (userId)
+        REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  // completion_votes 表：记录参与者对他人完成情况的投票
+  await query(`
+    CREATE TABLE IF NOT EXISTS completion_votes (
+      id        VARCHAR(64) PRIMARY KEY,
+      postId    VARCHAR(64) NOT NULL,
+      voterId   VARCHAR(64) NOT NULL,
+      targetId  VARCHAR(64) NOT NULL,
+      vote      ENUM('complete', 'incomplete') NOT NULL,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_vote (postId, voterId, targetId),
+      INDEX idx_cv_post_target (postId, targetId),
+      CONSTRAINT fk_cv_post FOREIGN KEY (postId) REFERENCES posts(id) ON DELETE CASCADE,
+      CONSTRAINT fk_cv_voter FOREIGN KEY (voterId) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT fk_cv_target FOREIGN KEY (targetId) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  // post_buddies 表新增 isComplete 字段（NULL=未结算, 0=未完成, 1=已完成）
+  const pbIsCompleteCol = await query(`SHOW COLUMNS FROM post_buddies LIKE 'isComplete'`);
+  if (pbIsCompleteCol.length === 0) {
+    await query(`ALTER TABLE post_buddies ADD COLUMN isComplete TINYINT(1) DEFAULT NULL`);
+  }
+
+  // posts 表新增 publisherComplete 字段（NULL=未结算, 0=未完成, 1=已完成）
+  const publisherCompleteCol = await query(`SHOW COLUMNS FROM posts LIKE 'publisherComplete'`);
+  if (publisherCompleteCol.length === 0) {
+    await query(`ALTER TABLE posts ADD COLUMN publisherComplete TINYINT(1) DEFAULT NULL`);
+  }
+
+  // annotations 表新增 deletedAt 字段（软删除：NULL=正常, 非空=已进回收站）
+  const annoDeletedAtCol = await query(`SHOW COLUMNS FROM annotations LIKE 'deletedAt'`);
+  if (annoDeletedAtCol.length === 0) {
+    await query(`ALTER TABLE annotations ADD COLUMN deletedAt DATETIME NULL DEFAULT NULL`);
+  }
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id          INT AUTO_INCREMENT PRIMARY KEY,
+      postId      VARCHAR(64) NOT NULL,
+      senderId    VARCHAR(64) NOT NULL,
+      senderName  VARCHAR(100) NOT NULL,
+      content     TEXT NOT NULL,
+      createdAt   DATETIME DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_messages_postId_createdAt (postId, createdAt)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
 }
 
 async function getUserRank(userId) {
@@ -292,11 +414,36 @@ async function initDb() {
   await createTables();
 }
 
+async function insertMessage(postId, senderId, senderName, content) {
+  const [result] = await createPool().execute(
+    'INSERT INTO messages (postId, senderId, senderName, content) VALUES (?, ?, ?, ?)',
+    [postId, senderId, senderName, content]
+  );
+  return result.insertId;
+}
+
+async function getRecentMessages(postId, limit = 50) {
+  const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
+  const rows = await query(
+    `SELECT id, senderId, senderName, content, createdAt
+     FROM messages WHERE postId = ? ORDER BY createdAt ASC LIMIT ${safeLimit}`,
+    [postId]
+  );
+  return rows;
+}
+
+async function deleteMessagesByPost(postId) {
+  await query('DELETE FROM messages WHERE postId = ?', [postId]);
+}
+
 module.exports = {
   dbConfig,
   initDb,
   mapPost,
   query,
   withTransaction,
-  getUserRank
+  getUserRank,
+  insertMessage,
+  getRecentMessages,
+  deleteMessagesByPost
 };

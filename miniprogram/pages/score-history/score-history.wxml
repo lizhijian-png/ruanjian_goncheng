@@ -1,0 +1,28 @@
+<view class="container">
+  <view class="page-header">
+    <text class="page-title">积分历史</text>
+  </view>
+
+  <view wx:if="{{loading}}" class="empty-tip">
+    <text>加载中...</text>
+  </view>
+
+  <view wx:elif="{{logs.length === 0}}" class="empty-tip">
+    <text>暂无积分记录</text>
+  </view>
+
+  <view wx:else class="log-list">
+    <view wx:for="{{logs}}" wx:key="id" class="log-item">
+      <view class="log-left">
+        <view class="log-reason">{{item.reason}}</view>
+        <view class="log-time">{{item.createdAt}}</view>
+      </view>
+      <view class="log-right">
+        <view class="log-delta {{item.delta >= 0 ? 'delta-positive' : 'delta-negative'}}">
+          {{item.delta >= 0 ? '+' : ''}}{{item.delta}} 分
+        </view>
+        <view class="log-balance">余额：{{item.balance}} 分</view>
+      </view>
+    </view>
+  </view>
+</view>

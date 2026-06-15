@@ -1,0 +1,41 @@
+.layer-root {
+  position: absolute;
+  left: 0; top: 0; right: 0; bottom: 0;
+  pointer-events: none;
+}
+.anno {
+  position: absolute;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+  opacity: 0.92;
+}
+.anno-text {
+  padding: 6rpx 12rpx;
+  border-radius: 10rpx;
+  font-size: 26rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.12);
+  max-width: 360rpx;
+}
+.anno-stamp {
+  font-size: 64rpx;
+  filter: drop-shadow(0 2rpx 4rpx rgba(0, 0, 0, 0.2));
+}
+.anno-dragging {
+  transform: translate(-50%, -50%) scale(1.12);
+  box-shadow: 0 6rpx 18rpx rgba(0, 0, 0, 0.3);
+  opacity: 1;
+  z-index: 50;
+}
+.anno-badge {
+  position: absolute;
+  right: -10rpx;
+  bottom: -14rpx;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 18rpx;
+  line-height: 1;
+  padding: 4rpx 8rpx;
+  border-radius: 16rpx;
+  white-space: nowrap;
+  pointer-events: none;
+}

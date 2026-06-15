@@ -30,25 +30,58 @@ Page({
     canEvaluate: false,
     completionStatusList: [],
     evalDeadlineText: '',
-    // 证据表单
-    showEvidenceForm: false,
-    evidenceInput: '',
     // 人员选择弹层
     showPersonPicker: false,
     evalTargets: [],
-    // 评价表单
-    showEvalForm: false,
-    evalTargetId: '',
-    evalTargetName: '',
-    evalScore: 5,
-    evalContent: ''
+    // 批注
+    annotations: [],
+    annoVisible: true,
+    cardWidth: 0,
+    cardHeight: 0,
+    isParticipant: false,
+    placingMode: false,
+    placingKind: '',
+    placingEmoji: '',
+    showTextInput: false,
+    textInputValue: '',
+    pendingX: 0,
+    pendingY: 0,
+    showAnnoDetail: false,
+    activeAnno: null,
+    canDeleteActive: false,
+    activeRotate: 0,
+    activeScale: 1,
+    activeColor: '#333333',
+    activeFontSize: 28,
+    editingAnno: false,
+    editContent: '',
+    colorOptions: ['#333333', '#e74c3c', '#27ae60', '#2980b9', '#f39c12', '#8e44ad'],
+    // 点赞 / 回复
+    activeLiked: false,
+    activeLikeCount: 0,
+    activeReplies: [],
+    replyInput: '',
+    replyLoading: false,
+    // 回收站
+    showTrash: false,
+    trashList: [],
+    canOpenChat: false,
   },
   async onLoad(options) {
+    this._firstShow = true;
     const app = getApp();
     const userInfo = app.globalData.userInfo || wx.getStorageSync('userInfo');
     const currentUserId = userInfo ? userInfo.id : '';
     this.setData({ currentUserId });
     await this._loadDetail(options.id);
+  },
+  onShow() {
+    if (this._firstShow) { this._firstShow = false; return; }
+    if ((this._returnFromEvaluate || this._returnFromEvidence) && this.data.post) {
+      this._returnFromEvaluate = false;
+      this._returnFromEvidence = false;
+      this._loadDetail(this.data.post.id);
+    }
   },
   async _loadDetail(postId) {
     try {
@@ -67,6 +100,10 @@ Page({
       const hasRequested = completionRequests.includes(currentUserId);
       const canRequestComplete = isBuddy && post.status === '进行中' && !hasRequested;
       const isParticipant = isPublisher || isBuddy;
+      const canOpenChat = post.partnerChat &&
+        isParticipant &&
+        post.status !== '已完成' &&
+        post.status !== '已放弃';
       const canSubmitEvidence = isParticipant && post.status === '待评价';
 
       let evalDeadlineText = '';
@@ -107,8 +144,17 @@ Page({
         canJoin, canStart, canMarkDone, canAbandon,
         canQuit, canRequestComplete, hasRequested,
         canSubmitEvidence, canEvaluate,
-        completionStatusList, evalDeadlineText, evalTargets
+        completionStatusList, evalDeadlineText, evalTargets, isParticipant: isPublisher || isBuddy,
+        canOpenChat
       });
+      try {
+        const annoRes = await api.getAnnotations(post.id, currentUserId);
+        this.setData({ annotations: annoRes.annotations || [] });
+      } catch (e) {
+        this.setData({ annotations: [] });
+        wx.showToast({ title: '批注加载失败', icon: 'none' });
+      }
+      this._measureCard();
     } catch (error) {
       wx.showToast({ title: error.message || '加载详情失败', icon: 'none' });
     }
@@ -202,31 +248,11 @@ Page({
       }
     });
   },
-  openEvidenceForm() {
-    this.setData({ showEvidenceForm: true, evidenceInput: '' });
-  },
-  closeEvidenceForm() {
-    this.setData({ showEvidenceForm: false, evidenceInput: '' });
-  },
-  onEvidenceInput(e) {
-    this.setData({ evidenceInput: e.detail.value });
-  },
-  async submitEvidence() {
-    const { post, currentUserId, evidenceInput } = this.data;
-    if (!String(evidenceInput).trim()) {
-      wx.showToast({ title: '请填写证据内容', icon: 'none' });
-      return;
-    }
-    const userInfo = getApp().globalData.userInfo || wx.getStorageSync('userInfo');
-    const submitterName = (userInfo && userInfo.nickname) ? userInfo.nickname : currentUserId;
-    try {
-      await api.submitEvidence(post.id, currentUserId, submitterName, evidenceInput);
-      wx.showToast({ title: '证据已提交', icon: 'success' });
-      this.setData({ showEvidenceForm: false, evidenceInput: '' });
-      await this._loadDetail(post.id);
-    } catch (error) {
-      wx.showToast({ title: error.message || '提交失败', icon: 'none' });
-    }
+  openEvidencePage() {
+    this._returnFromEvidence = true;
+    wx.navigateTo({
+      url: `/pages/submit-evidence/submit-evidence?postId=${this.data.post.id}`
+    });
   },
   openPersonPicker() {
     this.setData({ showPersonPicker: true });
@@ -237,40 +263,416 @@ Page({
   openEvalFormForPerson(e) {
     const { userid, nickname, evaluated } = e.currentTarget.dataset;
     if (evaluated) return;
-    this.setData({
-      showPersonPicker: false,
-      showEvalForm: true,
-      evalTargetId: userid,
-      evalTargetName: nickname,
-      evalScore: 5,
-      evalContent: ''
+    this.setData({ showPersonPicker: false });
+    this._returnFromEvaluate = true;
+    wx.navigateTo({
+      url: `/pages/evaluate/evaluate?postId=${this.data.post.id}&targetUserId=${userid}&targetNickname=${encodeURIComponent(nickname)}`
     });
   },
-  closeEvalForm() {
-    this.setData({ showEvalForm: false, evalTargetId: '', evalTargetName: '' });
+  onToolPick(e) {
+    if (!this.data.isParticipant) {
+      wx.showToast({ title: '只有参与者可以批注', icon: 'none' });
+      return;
+    }
+    const { kind, value } = e.detail;
+    this.setData({
+      placingMode: true,
+      placingKind: kind,
+      placingEmoji: kind === 'stamp' ? value : ''
+    });
+    wx.showToast({ title: '点击帖子上要贴的位置', icon: 'none' });
   },
-  onEvalScoreChange(e) {
-    this.setData({ evalScore: Number(e.detail.value) });
+  onCardTap(e) {
+    if (!this.data.placingMode) return;
+    const q = wx.createSelectorQuery().in(this);
+    q.select('.detail-card').boundingClientRect();
+    q.exec((res) => {
+      const rect = res[0];
+      if (!rect) return;
+      const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e.detail;
+      const px = t.clientX !== undefined ? t.clientX : t.x;
+      const py = t.clientY !== undefined ? t.clientY : t.y;
+      const x = Math.max(0, Math.min(100, ((px - rect.left) / rect.width) * 100));
+      const y = Math.max(0, Math.min(100, ((py - rect.top) / rect.height) * 100));
+      if (this.data.placingKind === 'stamp') {
+        this._createAnnotation('stamp', this.data.placingEmoji, { rotate: 0 }, x, y);
+      } else {
+        this.setData({ showTextInput: true, pendingX: x, pendingY: y });
+      }
+    });
   },
-  onEvalContentInput(e) {
-    this.setData({ evalContent: e.detail.value });
+  onTextInputChange(e) {
+    this.setData({ textInputValue: e.detail.value });
   },
-  async submitEvaluation() {
-    const { post, currentUserId, evalTargetId, evalScore, evalContent } = this.data;
-    if (!String(evalContent).trim()) {
-      wx.showToast({ title: '请填写评价内容', icon: 'none' });
+  confirmTextAnnotation() {
+    const text = String(this.data.textInputValue || '').trim();
+    if (!text) {
+      wx.showToast({ title: '请输入批注内容', icon: 'none' });
+      return;
+    }
+    const style = { color: '#c0392b', fontSize: 28, fontWeight: 'bold', bg: '#fff3b0', rotate: -3 };
+    this._createAnnotation('text', text, style, this.data.pendingX, this.data.pendingY);
+    this.setData({ showTextInput: false, textInputValue: '' });
+  },
+  cancelTextAnnotation() {
+    this.setData({ showTextInput: false, textInputValue: '', placingMode: false });
+  },
+  async _createAnnotation(type, content, style, x, y) {
+    const { post, currentUserId } = this.data;
+    try {
+      const res = await api.createAnnotation(post.id, {
+        userId: currentUserId, type, content, style: JSON.stringify(style), x, y
+      });
+      this.setData({
+        annotations: [...this.data.annotations, res.annotation],
+        placingMode: false, placingKind: '', placingEmoji: ''
+      });
+    } catch (error) {
+      this.setData({ placingMode: false });
+      wx.showToast({ title: error.message || '批注失败', icon: 'none' });
+    }
+  },
+  onTapAnnotation(e) {
+    const anno = this.data.annotations.find(a => a.id === e.detail.id);
+    if (!anno) return;
+    const canDelete = anno.userId === this.data.currentUserId || this.data.isPublisher;
+    let rotate = 0, scale = 1, color = '#333333', fontSize = 28;
+    try {
+      const st = JSON.parse(anno.style || '{}');
+      rotate = Number(st.rotate) || 0;
+      scale = Number(st.scale) || 1;
+      if (st.color) color = st.color;
+      if (st.fontSize) fontSize = Number(st.fontSize);
+    } catch (err) { rotate = 0; scale = 1; }
+    this.setData({
+      showAnnoDetail: true, activeAnno: anno, canDeleteActive: canDelete,
+      activeRotate: rotate, activeScale: scale, activeColor: color, activeFontSize: fontSize,
+      editingAnno: false, editContent: anno.content,
+      activeLiked: !!anno.liked, activeLikeCount: Number(anno.likeCount) || 0,
+      activeReplies: [], replyInput: ''
+    });
+    this._loadReplies(anno.id);
+  },
+  async _loadReplies(annId) {
+    const { post } = this.data;
+    try {
+      const res = await api.getAnnotationReplies(post.id, annId);
+      // 弹层可能已切换到别的批注,确认还在看同一条才写入
+      if (this.data.activeAnno && this.data.activeAnno.id === annId) {
+        this.setData({ activeReplies: res.replies || [] });
+      }
+    } catch (e) {
+      // 回复加载失败不阻断弹层,静默
+    }
+  },
+  _measureCard() {
+    const q = wx.createSelectorQuery().in(this);
+    q.select('.detail-card').boundingClientRect();
+    q.exec((res) => {
+      const rect = res[0];
+      if (rect) {
+        this.setData({ cardWidth: rect.width, cardHeight: rect.height });
+      }
+    });
+  },
+  onToggleAnnoVisible() {
+    this.setData({ annoVisible: !this.data.annoVisible });
+  },
+  async onAnnotationDragEnd(e) {
+    const { id, x, y } = e.detail;
+    const { post, currentUserId } = this.data;
+    const idx = this.data.annotations.findIndex(a => a.id === id);
+    if (idx < 0) return;
+    const oldX = this.data.annotations[idx].x;
+    const oldY = this.data.annotations[idx].y;
+    this.setData({
+      [`annotations[${idx}].x`]: x,
+      [`annotations[${idx}].y`]: y
+    });
+    try {
+      const res = await api.updateAnnotationPosition(post.id, id, currentUserId, x, y);
+      this.setData({ [`annotations[${idx}]`]: res.annotation });
+    } catch (error) {
+      this.setData({
+        [`annotations[${idx}].x`]: oldX,
+        [`annotations[${idx}].y`]: oldY
+      });
+      wx.showToast({ title: error.message || '移动失败', icon: 'none' });
+    }
+  },
+  closeAnnoDetail() {
+    this.setData({ showAnnoDetail: false, activeAnno: null });
+  },
+  onRotateChanging(e) {
+    // 拖动中实时预览:更新弹层角度 + 批注层该条
+    const rotate = Number(e.detail.value);
+    const id = this.data.activeAnno && this.data.activeAnno.id;
+    if (!id) return;
+    const idx = this.data.annotations.findIndex(a => a.id === id);
+    if (idx < 0) return;
+    let style = {};
+    try { style = JSON.parse(this.data.annotations[idx].style || '{}'); } catch (err) { style = {}; }
+    style.rotate = rotate;
+    this.setData({
+      activeRotate: rotate,
+      [`annotations[${idx}].style`]: JSON.stringify(style)
+    });
+  },
+  async onRotateChange(e) {
+    // 松手保存
+    const rotate = Number(e.detail.value);
+    const { post, currentUserId, activeAnno } = this.data;
+    if (!activeAnno) return;
+    const id = activeAnno.id;
+    const idx = this.data.annotations.findIndex(a => a.id === id);
+    if (idx < 0) return;
+    const oldStyle = activeAnno.style;
+    try {
+      const res = await api.updateAnnotationRotate(post.id, id, currentUserId, rotate);
+      this.setData({
+        [`annotations[${idx}]`]: res.annotation,
+        activeAnno: res.annotation
+      });
+    } catch (error) {
+      this.setData({ [`annotations[${idx}].style`]: oldStyle, activeRotate: this._parseRotate(oldStyle) });
+      wx.showToast({ title: error.message || '旋转失败', icon: 'none' });
+    }
+  },
+  _parseRotate(styleStr) {
+    try { return Number(JSON.parse(styleStr || '{}').rotate) || 0; } catch (e) { return 0; }
+  },
+  onScaleChanging(e) {
+    const scale = Number(e.detail.value);
+    const id = this.data.activeAnno && this.data.activeAnno.id;
+    if (!id) return;
+    const idx = this.data.annotations.findIndex(a => a.id === id);
+    if (idx < 0) return;
+    let style = {};
+    try { style = JSON.parse(this.data.annotations[idx].style || '{}'); } catch (err) { style = {}; }
+    style.scale = scale;
+    this.setData({
+      activeScale: scale,
+      [`annotations[${idx}].style`]: JSON.stringify(style)
+    });
+  },
+  async onScaleChange(e) {
+    const scale = Number(e.detail.value);
+    const { post, currentUserId, activeAnno } = this.data;
+    if (!activeAnno) return;
+    const id = activeAnno.id;
+    const idx = this.data.annotations.findIndex(a => a.id === id);
+    if (idx < 0) return;
+    const oldStyle = activeAnno.style;
+    try {
+      const res = await api.updateAnnotationScale(post.id, id, currentUserId, scale);
+      this.setData({
+        [`annotations[${idx}]`]: res.annotation,
+        activeAnno: res.annotation
+      });
+    } catch (error) {
+      this.setData({ [`annotations[${idx}].style`]: oldStyle, activeScale: this._parseScale(oldStyle) });
+      wx.showToast({ title: error.message || '缩放失败', icon: 'none' });
+    }
+  },
+  _parseScale(styleStr) {
+    try { return Number(JSON.parse(styleStr || '{}').scale) || 1; } catch (e) { return 1; }
+  },
+  // ===== 内容/样式编辑 =====
+  noop() {},
+  startEditAnno() {
+    const anno = this.data.activeAnno;
+    if (!anno) return;
+    this.setData({ editingAnno: true, editContent: anno.content });
+  },
+  cancelEditAnno() {
+    this.setData({ editingAnno: false, editContent: this.data.activeAnno ? this.data.activeAnno.content : '' });
+  },
+  onEditContentInput(e) {
+    this.setData({ editContent: e.detail.value });
+  },
+  async saveEditContent() {
+    const { post, currentUserId, activeAnno, editContent } = this.data;
+    if (!activeAnno) return;
+    const content = String(editContent || '').trim();
+    if (!content) {
+      wx.showToast({ title: '内容不能为空', icon: 'none' });
       return;
     }
     try {
-      await api.submitEvaluation(post.id, currentUserId, evalTargetId, evalScore, evalContent);
-      wx.showToast({ title: '评价已提交', icon: 'success' });
-      this.setData({ showEvalForm: false, evalTargetId: '', evalTargetName: '' });
-      await this._loadDetail(post.id);
+      const res = await api.updateAnnotationContent(post.id, activeAnno.id, currentUserId, { content });
+      const idx = this.data.annotations.findIndex(a => a.id === activeAnno.id);
+      const patch = { activeAnno: res.annotation, editingAnno: false };
+      if (idx >= 0) patch[`annotations[${idx}]`] = res.annotation;
+      this.setData(patch);
+      wx.showToast({ title: '已保存', icon: 'none' });
     } catch (error) {
-      wx.showToast({ title: error.message || '提交失败', icon: 'none' });
+      wx.showToast({ title: error.message || '保存失败', icon: 'none' });
     }
   },
-  backToPersonPicker() {
-    this.setData({ showEvalForm: false, showPersonPicker: true });
+  async onPickColor(e) {
+    const color = e.currentTarget.dataset.color;
+    const { post, currentUserId, activeAnno } = this.data;
+    if (!activeAnno || color === this.data.activeColor) return;
+    const idx = this.data.annotations.findIndex(a => a.id === activeAnno.id);
+    if (idx < 0) return;
+    const oldColor = this.data.activeColor;
+    const oldStyle = activeAnno.style;
+    try {
+      const res = await api.updateAnnotationContent(post.id, activeAnno.id, currentUserId, { color });
+      this.setData({
+        [`annotations[${idx}]`]: res.annotation,
+        activeAnno: res.annotation, activeColor: color
+      });
+    } catch (error) {
+      this.setData({ [`annotations[${idx}].style`]: oldStyle, activeColor: oldColor });
+      wx.showToast({ title: error.message || '改色失败', icon: 'none' });
+    }
+  },
+  onFontSizeChanging(e) {
+    const fontSize = Number(e.detail.value);
+    const id = this.data.activeAnno && this.data.activeAnno.id;
+    if (!id) return;
+    const idx = this.data.annotations.findIndex(a => a.id === id);
+    if (idx < 0) return;
+    let style = {};
+    try { style = JSON.parse(this.data.annotations[idx].style || '{}'); } catch (err) { style = {}; }
+    style.fontSize = fontSize;
+    this.setData({
+      activeFontSize: fontSize,
+      [`annotations[${idx}].style`]: JSON.stringify(style)
+    });
+  },
+  async onFontSizeChange(e) {
+    const fontSize = Number(e.detail.value);
+    const { post, currentUserId, activeAnno } = this.data;
+    if (!activeAnno) return;
+    const idx = this.data.annotations.findIndex(a => a.id === activeAnno.id);
+    if (idx < 0) return;
+    const oldStyle = activeAnno.style;
+    try {
+      const res = await api.updateAnnotationContent(post.id, activeAnno.id, currentUserId, { fontSize });
+      this.setData({
+        [`annotations[${idx}]`]: res.annotation,
+        activeAnno: res.annotation
+      });
+    } catch (error) {
+      this.setData({ [`annotations[${idx}].style`]: oldStyle, activeFontSize: this._parseFontSize(oldStyle) });
+      wx.showToast({ title: error.message || '字号修改失败', icon: 'none' });
+    }
+  },
+  _parseFontSize(styleStr) {
+    try { return Number(JSON.parse(styleStr || '{}').fontSize) || 28; } catch (e) { return 28; }
+  },
+  async deleteActiveAnnotation() {
+    const { post, currentUserId, activeAnno } = this.data;
+    if (!activeAnno) return;
+    try {
+      await api.deleteAnnotation(post.id, activeAnno.id, currentUserId);
+      this.setData({
+        annotations: this.data.annotations.filter(a => a.id !== activeAnno.id),
+        showAnnoDetail: false, activeAnno: null
+      });
+      wx.showToast({ title: '已移入回收站', icon: 'none' });
+    } catch (error) {
+      wx.showToast({ title: error.message || '删除失败', icon: 'none' });
+    }
+  },
+  // ===== 点赞 / 回复 =====
+  _patchAnnoInList(annId, patch) {
+    const idx = this.data.annotations.findIndex(a => a.id === annId);
+    if (idx < 0) return;
+    const upd = {};
+    Object.keys(patch).forEach(k => { upd[`annotations[${idx}].${k}`] = patch[k]; });
+    this.setData(upd);
+  },
+  async onToggleLike() {
+    const { post, currentUserId, activeAnno, activeLiked, activeLikeCount } = this.data;
+    if (!activeAnno) return;
+    if (!currentUserId) { wx.showToast({ title: '请先登录', icon: 'none' }); return; }
+    // 乐观更新
+    const nextLiked = !activeLiked;
+    const nextCount = activeLikeCount + (nextLiked ? 1 : -1);
+    this.setData({ activeLiked: nextLiked, activeLikeCount: nextCount });
+    this._patchAnnoInList(activeAnno.id, { liked: nextLiked, likeCount: nextCount });
+    try {
+      const res = await api.toggleAnnotationLike(post.id, activeAnno.id, currentUserId);
+      // 以服务端返回为准校正
+      this.setData({ activeLiked: res.liked, activeLikeCount: res.likeCount });
+      this._patchAnnoInList(activeAnno.id, { liked: res.liked, likeCount: res.likeCount });
+    } catch (error) {
+      // 回滚
+      this.setData({ activeLiked, activeLikeCount });
+      this._patchAnnoInList(activeAnno.id, { liked: activeLiked, likeCount: activeLikeCount });
+      wx.showToast({ title: error.message || '操作失败', icon: 'none' });
+    }
+  },
+  onReplyInput(e) {
+    this.setData({ replyInput: e.detail.value });
+  },
+  async submitReply() {
+    const { post, currentUserId, activeAnno, replyInput, replyLoading } = this.data;
+    if (!activeAnno || replyLoading) return;
+    if (!currentUserId) { wx.showToast({ title: '请先登录', icon: 'none' }); return; }
+    const content = String(replyInput || '').trim();
+    if (!content) { wx.showToast({ title: '回复不能为空', icon: 'none' }); return; }
+    this.setData({ replyLoading: true });
+    try {
+      const res = await api.createAnnotationReply(post.id, activeAnno.id, currentUserId, content);
+      const replies = this.data.activeReplies.concat(res.reply);
+      this.setData({ activeReplies: replies, replyInput: '' });
+      this._patchAnnoInList(activeAnno.id, { replyCount: replies.length });
+    } catch (error) {
+      wx.showToast({ title: error.message || '回复失败', icon: 'none' });
+    } finally {
+      this.setData({ replyLoading: false });
+    }
+  },
+  async deleteReply(e) {
+    const replyId = e.currentTarget.dataset.id;
+    const { post, currentUserId, activeAnno } = this.data;
+    if (!activeAnno || !replyId) return;
+    try {
+      await api.deleteAnnotationReply(post.id, activeAnno.id, replyId, currentUserId);
+      const replies = this.data.activeReplies.filter(r => r.id !== replyId);
+      this.setData({ activeReplies: replies });
+      this._patchAnnoInList(activeAnno.id, { replyCount: replies.length });
+    } catch (error) {
+      wx.showToast({ title: error.message || '删除失败', icon: 'none' });
+    }
+  },
+  // ===== 回收站 =====
+  async openTrash() {
+    const { post, currentUserId } = this.data;
+    try {
+      const res = await api.getAnnotationTrash(post.id, currentUserId);
+      this.setData({ showTrash: true, trashList: res.trash || [] });
+    } catch (error) {
+      wx.showToast({ title: error.message || '回收站加载失败', icon: 'none' });
+    }
+  },
+  closeTrash() {
+    this.setData({ showTrash: false });
+  },
+  async restoreFromTrash(e) {
+    const annId = e.currentTarget.dataset.id;
+    const { post, currentUserId } = this.data;
+    if (!annId) return;
+    try {
+      await api.restoreAnnotation(post.id, annId, currentUserId);
+      // 软删未动赞/回复,恢复后重新拉一次列表,拿到准确的点赞/回复计数
+      this.setData({ trashList: this.data.trashList.filter(a => a.id !== annId) });
+      try {
+        const annoRes = await api.getAnnotations(post.id, currentUserId);
+        this.setData({ annotations: annoRes.annotations || [] });
+      } catch (e) { /* 列表刷新失败不阻断恢复结果 */ }
+      wx.showToast({ title: '已恢复', icon: 'none' });
+    } catch (error) {
+      wx.showToast({ title: error.message || '恢复失败', icon: 'none' });
+    }
+  },
+  openChat() {
+    wx.navigateTo({
+      url: `/pages/chat/chat?postId=${this.data.post.id}`
+    });
   },
 });

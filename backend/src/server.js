@@ -3,15 +3,56 @@ const cors = require('cors');
 const axios = require('axios');
 const { initDb, mapPost, query, withTransaction, getUserRank } = require('./db');
 const { generateAiComment } = require('./ai');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const http = require('http');
+const { createChatServer } = require('./chat');
+const { getRecentMessages, deleteMessagesByPost } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 function createId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+const uploadsDir = path.join(__dirname, '../uploads');
+fs.mkdirSync(uploadsDir, { recursive: true });
+
+const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `${createId('img')}${ext}`);
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_MIME.has(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(Object.assign(new Error('只允许上传图片'), { status: 400 }));
+    }
+  }
+});
+
+async function insertPointLog(connection, userId, delta, reason) {
+  const [[user]] = await connection.execute('SELECT points FROM users WHERE id = ?', [userId]);
+  const balance = user ? user.points : 0;
+  const logId = createId('pl');
+  await connection.execute(
+    'INSERT INTO point_logs (id, userId, delta, balance, reason) VALUES (?, ?, ?, ?, ?)',
+    [logId, userId, delta, balance, reason]
+  );
 }
 
 async function buildUserResponse(user) {
@@ -29,6 +70,15 @@ async function buildUserResponse(user) {
 async function getUserById(userId) {
   const rows = await query('SELECT * FROM users WHERE id = ?', [userId]);
   return rows[0] || null;
+}
+
+async function isParticipant(postId, userId, post) {
+  if (post.publisherId === userId) return true;
+  const rows = await query(
+    'SELECT id FROM post_buddies WHERE postId = ? AND userId = ?',
+    [postId, userId]
+  );
+  return rows.length > 0;
 }
 
 async function syncPostStatus(postId) {
@@ -64,7 +114,9 @@ async function syncPostStatus(postId) {
 }
 
 async function settlePost(postId) {
-  let publisherId = null;
+  let participants = [];
+  let settled = false;
+
   await withTransaction(async (connection) => {
     const [result] = await connection.execute(
       "UPDATE posts SET status = '已完成', progress = 100 WHERE id = ? AND status = '待评价'",
@@ -72,36 +124,61 @@ async function settlePost(postId) {
     );
     if (result.affectedRows === 0) return;
 
-    const [postRows] = await connection.execute('SELECT * FROM posts WHERE id = ?', [postId]);
-    const post = postRows[0];
-    publisherId = post.publisherId;
-
-    await connection.execute(
-      'UPDATE users SET points = points + ? WHERE id = ?',
-      [post.reward || 0, post.publisherId]
-    );
+    const [[post]] = await connection.execute('SELECT * FROM posts WHERE id = ?', [postId]);
     const [buddyRows] = await connection.execute(
       'SELECT userId FROM post_buddies WHERE postId = ?',
       [postId]
     );
-    for (const buddy of buddyRows) {
-      await connection.execute(
-        'UPDATE users SET points = points + ? WHERE id = ?',
-        [post.reward || 0, buddy.userId]
+    participants = [post.publisherId, ...buddyRows.map(b => b.userId)];
+    const N = participants.length;
+
+    for (const targetId of participants) {
+      const [[{ rejectCount }]] = await connection.execute(
+        `SELECT COUNT(*) AS rejectCount FROM completion_votes
+         WHERE postId = ? AND targetId = ? AND vote = 'incomplete'`,
+        [postId, targetId]
       );
+      const voterCount = N - 1;
+      const isComplete = (voterCount === 0 || Number(rejectCount) * 2 < voterCount) ? 1 : 0;
+
+      if (targetId === post.publisherId) {
+        await connection.execute(
+          'UPDATE posts SET publisherComplete = ? WHERE id = ?',
+          [isComplete, postId]
+        );
+      } else {
+        await connection.execute(
+          'UPDATE post_buddies SET isComplete = ? WHERE postId = ? AND userId = ?',
+          [isComplete, postId, targetId]
+        );
+      }
+
+      if (isComplete) {
+        await connection.execute(
+          'UPDATE users SET points = points + ? WHERE id = ?',
+          [post.reward || 0, targetId]
+        );
+        await insertPointLog(connection, targetId, post.reward || 0, `完成任务《${post.title}》`);
+      }
     }
+
+    settled = true;
   });
-  if (publisherId) {
-    await recalcCompletionRate(publisherId);
-    const evaluated = await query(
-      'SELECT DISTINCT toId FROM evaluations WHERE postId = ?',
-      [postId]
-    );
-    for (const { toId } of evaluated) {
-      setImmediate(() => generateAiComment(toId).catch(err =>
-        console.error(`[AI] setImmediate error for ${toId}:`, err)
-      ));
-    }
+
+  if (!settled) return;
+
+  for (const targetId of participants) {
+    await recalcCompletionRate(targetId);
+  }
+
+  const evaluated = await query(
+    'SELECT DISTINCT toId FROM evaluations WHERE postId = ?',
+    [postId]
+  );
+  for (const { toId } of evaluated) {
+    setImmediate(() => generateAiComment(toId).catch(err =>
+      console.error(`[AI] setImmediate error for ${toId}:`, err)
+    ));
   }
 }
 
@@ -127,6 +204,27 @@ function calcRecommendedScore(post, publisherUser, preferenceMap) {
 
 app.get('/api/health', (_req, res) => {
   res.json({ success: true, message: 'backend is running' });
+});
+
+app.get('/api/chat/:postId/history', async (req, res, next) => {
+  try {
+    const { postId } = req.params;
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ message: '缺少 userId' });
+
+    const postRows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
+    const post = postRows[0];
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
+    if (!post.partnerChat) return res.status(403).json({ message: '该任务未开启聊天' });
+
+    const ok = await isParticipant(postId, userId, post);
+    if (!ok) return res.status(403).json({ message: '只有参与者可以查看聊天记录' });
+
+    const messages = await getRecentMessages(postId, 50);
+    res.json({ messages });
+  } catch (error) {
+    next(error);
+  }
 });
 
 async function resolveOpenid(code, devFallbackKey) {
@@ -309,10 +407,22 @@ app.get('/api/posts/:id', async (req, res, next) => {
     const postRow = postRows[0];
     if (!postRow) return res.status(404).json({ message: '帖子不存在' });
 
-    const evidenceList = await query(
-      'SELECT submitterId, submitterName, type, value FROM evidences WHERE postId = ? ORDER BY createdAt ASC',
+    const evidenceRows = await query(
+      'SELECT submitterId, submitterName, type, value, imageUrls FROM evidences WHERE postId = ? ORDER BY createdAt ASC',
       [req.params.id]
     );
+    const evidenceList = evidenceRows.map(row => {
+      let imageUrls = [];
+      if (row.imageUrls) {
+        try {
+          const parsed = JSON.parse(row.imageUrls);
+          imageUrls = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          imageUrls = [];
+        }
+      }
+      return { ...row, imageUrls };
+    });
     const buddies = await query(
       'SELECT userId, nickname, joinedAt FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC',
       [req.params.id]
@@ -321,8 +431,10 @@ app.get('/api/posts/:id', async (req, res, next) => {
     const viewerId = req.query.viewerId || '';
     let evaluationsSent = [];
     let evaluationsReceived = [];
+    let myCompletionVotes = {};
     if (viewerId) {
-      [evaluationsSent, evaluationsReceived] = await Promise.all([
+      let voteRows;
+      [evaluationsSent, evaluationsReceived, voteRows] = await Promise.all([
         query(
           `SELECT e.toId, u.nickname AS toName, e.score, e.content, e.createdAt
            FROM evaluations e LEFT JOIN users u ON e.toId = u.id
@@ -334,8 +446,13 @@ app.get('/api/posts/:id', async (req, res, next) => {
            FROM evaluations e
            WHERE e.postId = ? AND e.toId = ? ORDER BY e.createdAt ASC`,
           [req.params.id, viewerId]
+        ),
+        query(
+          'SELECT targetId, vote FROM completion_votes WHERE postId = ? AND voterId = ?',
+          [req.params.id, viewerId]
         )
       ]);
+      myCompletionVotes = Object.fromEntries(voteRows.map(r => [r.targetId, r.vote]));
     }
 
     const participantIds = new Set([postRow.publisherId, ...buddies.map(b => b.userId)]);
@@ -353,7 +470,8 @@ app.get('/api/posts/:id', async (req, res, next) => {
       buddies,
       hasEvidence,
       evaluationsSent,
-      evaluationsReceived
+      evaluationsReceived,
+      myCompletionVotes
     });
   } catch (error) {
     next(error);
@@ -600,11 +718,41 @@ app.post('/api/posts/:id/quit', async (req, res, next) => {
   }
 });
 
+async function requireUserId(req, res, next) {
+  try {
+    const userId = req.body.userId || req.query.userId;
+    if (!userId) return res.status(400).json({ message: '缺少 userId' });
+    const userRows = await query('SELECT id FROM users WHERE id = ?', [userId]);
+    if (userRows.length === 0) return res.status(403).json({ message: '用户不存在' });
+    req.verifiedUserId = userId;
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
+app.post('/api/upload', requireUserId, upload.single('file'), (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: '未收到文件' });
+    res.json({ url: `/uploads/${req.file.filename}` });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/api/posts/:id/evidence', async (req, res, next) => {
   try {
     await syncPostStatus(req.params.id);
-    const { userId, submitterName, content } = req.body;
+    const { userId, submitterName, content, imageUrls } = req.body;
     if (!userId || !String(content || '').trim()) return res.status(400).json({ message: '缺少 userId 或证据内容' });
+
+    const rawImageUrls = Array.isArray(imageUrls) ? imageUrls : [];
+    if (rawImageUrls.length > 3) return res.status(400).json({ message: '图片最多 3 张' });
+    if (rawImageUrls.some(u => typeof u !== 'string' || !u.startsWith('/uploads/'))) {
+      return res.status(400).json({ message: '图片地址无效' });
+    }
+    const safeImageUrls = rawImageUrls;
+
     const safeSubmitterName = String(submitterName || userId).trim();
 
     const postRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
@@ -623,15 +771,36 @@ app.post('/api/posts/:id/evidence', async (req, res, next) => {
       return res.status(400).json({ message: `任务尚未结束，证据须在任务完成后或到达结束时间（${endStr}）后提交` });
     }
 
-    const id = createId('e');
+    const existingRows = await query('SELECT id, imageUrls FROM evidences WHERE postId = ? AND submitterId = ?', [req.params.id, userId]);
+    if (existingRows.length > 0) {
+      const oldUrls = existingRows[0].imageUrls ? JSON.parse(existingRows[0].imageUrls) : [];
+      const newSet = new Set(safeImageUrls);
+      for (const oldUrl of oldUrls) {
+        if (!newSet.has(oldUrl)) {
+          const filePath = path.join(__dirname, '..', oldUrl);
+          fs.unlink(filePath, () => {});
+        }
+      }
+    }
+
+    const id = existingRows.length > 0 ? existingRows[0].id : createId('e');
     const trimmedValue = String(content).trim();
+    const imageUrlsJson = safeImageUrls.length > 0 ? JSON.stringify(safeImageUrls) : null;
+
     const result = await query(
-      `INSERT INTO evidences (id, postId, submitterId, submitterName, type, value) VALUES (?, ?, ?, ?, '文字', ?)
-       ON DUPLICATE KEY UPDATE id = VALUES(id), submitterName = VALUES(submitterName), value = VALUES(value), createdAt = NOW()`,
-      [id, req.params.id, userId, safeSubmitterName, trimmedValue]
+      `INSERT INTO evidences (id, postId, submitterId, submitterName, type, value, imageUrls) VALUES (?, ?, ?, ?, '文字', ?, ?)
+       ON DUPLICATE KEY UPDATE id = VALUES(id), submitterName = VALUES(submitterName), value = VALUES(value), imageUrls = VALUES(imageUrls), createdAt = NOW()`,
+      [id, req.params.id, userId, safeSubmitterName, trimmedValue, imageUrlsJson]
     );
 
-    const evidence = { id, submitterId: userId, submitterName: safeSubmitterName, type: '文字', value: trimmedValue };
+    const evidence = {
+      id,
+      submitterId: userId,
+      submitterName: safeSubmitterName,
+      type: '文字',
+      value: trimmedValue,
+      imageUrls: safeImageUrls
+    };
     const statusCode = result.affectedRows === 1 ? 201 : 200;
     res.status(statusCode).json(evidence);
   } catch (error) {
@@ -651,6 +820,8 @@ app.post('/api/posts/:id/complete', async (req, res, next) => {
     if (userId && current.publisherId !== userId) return res.status(403).json({ message: '只有发布者可以标记完成' });
 
     await query('UPDATE posts SET status = ? WHERE id = ?', ['待评价', req.params.id]);
+    await deleteMessagesByPost(req.params.id);
+    req.app.locals.chatServer.closeRoom(req.params.id, 'task_completed');
     const freshRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     res.json(mapPost(freshRows[0]));
   } catch (error) {
@@ -695,6 +866,51 @@ app.post('/api/posts/:id/evaluate', async (req, res, next) => {
   }
 });
 
+app.post('/api/posts/:id/completion-vote', async (req, res, next) => {
+  try {
+    await syncPostStatus(req.params.id);
+    const { userId, targetId, vote } = req.body;
+    if (!userId || !targetId || !['complete', 'incomplete'].includes(vote)) {
+      return res.status(400).json({ message: '缺少参数或 vote 值非法' });
+    }
+    if (userId === targetId) {
+      return res.status(400).json({ message: '不能对自己投票' });
+    }
+
+    const postRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
+    const post = postRows[0];
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
+    if (post.status !== '待评价') {
+      return res.status(400).json({ message: '只有待评价状态的任务才能投票' });
+    }
+    if (post.evaluationDeadline && new Date() >= new Date(post.evaluationDeadline)) {
+      return res.status(403).json({ message: '评价窗口已关闭' });
+    }
+
+    const allBuddies = await query('SELECT userId FROM post_buddies WHERE postId = ?', [req.params.id]);
+    const participantIds = new Set([post.publisherId, ...allBuddies.map(b => b.userId)]);
+    if (!participantIds.has(userId)) {
+      return res.status(403).json({ message: '只有参与者才能投票' });
+    }
+    if (!participantIds.has(targetId)) {
+      return res.status(400).json({ message: '被投票者不是该任务参与者' });
+    }
+
+    // ON DUPLICATE KEY fires on uq_vote(postId,voterId,targetId); id is only used for new rows
+    const voteId = createId('cv');
+    await query(
+      `INSERT INTO completion_votes (id, postId, voterId, targetId, vote)
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE vote = VALUES(vote)`,
+      [voteId, req.params.id, userId, targetId, vote]
+    );
+
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/api/users/:id/evaluations-received', async (req, res, next) => {
   try {
     const rows = await query(
@@ -710,12 +926,27 @@ app.get('/api/users/:id/evaluations-received', async (req, res, next) => {
 });
 
 async function recalcCompletionRate(userId) {
-  const rows = await query(
-    `SELECT COUNT(*) AS total, SUM(status = '已完成') AS done FROM posts WHERE publisherId = ?`,
-    [userId]
-  );
-  const { total, done } = rows[0];
-  const rate = total > 0 ? Math.round(((done || 0) / total) * 100) : 0;
+  const [pubRows, buddyRows] = await Promise.all([
+    query(
+      `SELECT COUNT(*) AS total, SUM(publisherComplete = 1) AS done
+       FROM posts WHERE publisherId = ? AND publisherComplete IS NOT NULL`,
+      [userId]
+    ),
+    query(
+      `SELECT COUNT(*) AS total, SUM(isComplete = 1) AS done
+       FROM post_buddies WHERE userId = ? AND isComplete IS NOT NULL`,
+      [userId]
+    )
+  ]);
+
+  const pubTotal = Number(pubRows[0].total) || 0;
+  const pubDone = Number(pubRows[0].done) || 0;
+  const buddyTotal = Number(buddyRows[0].total) || 0;
+  const buddyDone = Number(buddyRows[0].done) || 0;
+
+  const total = pubTotal + buddyTotal;
+  const done = pubDone + buddyDone;
+  const rate = total > 0 ? Math.round((done / total) * 100) : 0;
   await query('UPDATE users SET completionRate = ? WHERE id = ?', [rate, userId]);
 }
 
@@ -739,10 +970,16 @@ app.post('/api/posts/:id/abandon', async (req, res, next) => {
 
     await withTransaction(async (connection) => {
       await connection.execute('UPDATE posts SET status = ? WHERE id = ?', ['已放弃', req.params.id]);
-      await connection.execute('UPDATE users SET points = GREATEST(0, points - ?) WHERE id = ?', [post.penalty, post.publisherId]);
+      await connection.execute(
+        'UPDATE users SET points = GREATEST(0, points - ?) WHERE id = ?',
+        [post.penalty, post.publisherId]
+      );
+      await insertPointLog(connection, post.publisherId, -post.penalty, `放弃任务《${post.title}》`);
     });
 
     await recalcCompletionRate(post.publisherId);
+    await deleteMessagesByPost(req.params.id);
+    req.app.locals.chatServer.closeRoom(req.params.id, 'task_abandoned');
     const freshRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     res.json(mapPost(freshRows[0]));
   } catch (error) {
@@ -902,6 +1139,377 @@ app.put('/api/admin/posts/:id/audit-status', async (req, res, next) => {
   }
 });
 
+app.get('/api/users/:id/point-logs', async (req, res, next) => {
+  try {
+    const rows = await query(
+      'SELECT id, delta, balance, reason, createdAt FROM point_logs WHERE userId = ? ORDER BY createdAt DESC',
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/posts/:id/annotations', async (req, res, next) => {
+  try {
+    const viewerId = req.query.viewerId || '';
+    const annotations = await query(
+      `SELECT a.id, a.userId, a.nickname, a.type, a.content, a.style, a.x, a.y, a.createdAt,
+              (SELECT COUNT(*) FROM annotation_likes l WHERE l.annId = a.id) AS likeCount,
+              (SELECT COUNT(*) FROM annotation_replies r WHERE r.annId = a.id) AS replyCount,
+              (SELECT COUNT(*) FROM annotation_likes l2 WHERE l2.annId = a.id AND l2.userId = ?) AS liked
+       FROM annotations a WHERE a.postId = ? AND a.deletedAt IS NULL ORDER BY a.createdAt ASC`,
+      [viewerId, req.params.id]
+    );
+    annotations.forEach((a) => {
+      a.likeCount = Number(a.likeCount);
+      a.replyCount = Number(a.replyCount);
+      a.liked = Number(a.liked) > 0;
+    });
+    res.json({ success: true, annotations });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/posts/:id/annotations', async (req, res, next) => {
+  try {
+    const postId = req.params.id;
+    const { userId, type, content, style, x, y } = req.body;
+
+    const postRows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
+    const post = postRows[0];
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
+
+    if (!userId || !(await isParticipant(postId, userId, post))) {
+      return res.status(403).json({ message: '只有任务参与者可以批注' });
+    }
+    if (type !== 'text' && type !== 'stamp') {
+      return res.status(400).json({ message: 'type 不合法' });
+    }
+    if (!String(content || '').trim()) {
+      return res.status(400).json({ message: '批注内容不能为空' });
+    }
+    const nx = Number(x), ny = Number(y);
+    if (!(nx >= 0 && nx <= 100 && ny >= 0 && ny <= 100)) {
+      return res.status(400).json({ message: '坐标超出范围' });
+    }
+
+    const countRows = await query(
+      'SELECT COUNT(*) AS cnt FROM annotations WHERE postId = ? AND userId = ?',
+      [postId, userId]
+    );
+    if (countRows[0].cnt >= 20) {
+      return res.status(400).json({ message: '你在该帖的批注已达上限(20 条)' });
+    }
+
+    const user = await getUserById(userId);
+    if (!user) return res.status(400).json({ message: '用户不存在' });
+
+    const id = createId('ann');
+    const styleStr = typeof style === 'string' ? style : JSON.stringify(style || {});
+    await query(
+      `INSERT INTO annotations (id, postId, userId, nickname, type, content, style, x, y)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, postId, userId, user.nickname, type, String(content), styleStr, nx, ny]
+    );
+
+    const rows = await query(
+      `SELECT id, userId, nickname, type, content, style, x, y, createdAt
+       FROM annotations WHERE id = ?`,
+      [id]
+    );
+    res.json({ success: true, annotation: rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 软删除:进回收站(不物理删,只标记 deletedAt)。作者本人或楼主可删
+app.delete('/api/posts/:id/annotations/:annId', async (req, res, next) => {
+  try {
+    const { id: postId, annId } = req.params;
+    const { userId } = req.body;
+
+    const annRows = await query('SELECT * FROM annotations WHERE id = ? AND postId = ?', [annId, postId]);
+    const ann = annRows[0];
+    if (!ann) return res.status(404).json({ message: '批注不存在' });
+
+    const postRows = await query('SELECT publisherId FROM posts WHERE id = ?', [postId]);
+    const post = postRows[0];
+    const isOwner = ann.userId === userId;
+    const isPublisher = post && post.publisherId === userId;
+    if (!isOwner && !isPublisher) {
+      return res.status(403).json({ message: '无权删除该批注' });
+    }
+
+    await query('UPDATE annotations SET deletedAt = NOW() WHERE id = ?', [annId]);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 回收站列表:楼主看本帖所有已删批注,普通参与者只看自己删的
+app.get('/api/posts/:id/annotations/trash', async (req, res, next) => {
+  try {
+    const postId = req.params.id;
+    const viewerId = req.query.viewerId || '';
+
+    const postRows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
+    const post = postRows[0];
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
+    if (!viewerId || !(await isParticipant(postId, viewerId, post))) {
+      return res.status(403).json({ message: '只有任务参与者可以查看回收站' });
+    }
+
+    const isPublisher = post.publisherId === viewerId;
+    const sql = isPublisher
+      ? `SELECT id, userId, nickname, type, content, style, x, y, createdAt, deletedAt
+         FROM annotations WHERE postId = ? AND deletedAt IS NOT NULL ORDER BY deletedAt DESC`
+      : `SELECT id, userId, nickname, type, content, style, x, y, createdAt, deletedAt
+         FROM annotations WHERE postId = ? AND deletedAt IS NOT NULL AND userId = ? ORDER BY deletedAt DESC`;
+    const params = isPublisher ? [postId] : [postId, viewerId];
+    const trash = await query(sql, params);
+    res.json({ success: true, trash });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 恢复:把回收站里的批注还原(deletedAt 置空)。作者本人或楼主可恢复
+app.post('/api/posts/:id/annotations/:annId/restore', async (req, res, next) => {
+  try {
+    const { id: postId, annId } = req.params;
+    const { userId } = req.body;
+
+    const annRows = await query('SELECT * FROM annotations WHERE id = ? AND postId = ?', [annId, postId]);
+    const ann = annRows[0];
+    if (!ann) return res.status(404).json({ message: '批注不存在' });
+    if (!ann.deletedAt) return res.status(400).json({ message: '该批注未被删除' });
+
+    const postRows = await query('SELECT publisherId FROM posts WHERE id = ?', [postId]);
+    const post = postRows[0];
+    const isOwner = ann.userId === userId;
+    const isPublisher = post && post.publisherId === userId;
+    if (!isOwner && !isPublisher) {
+      return res.status(403).json({ message: '无权恢复该批注' });
+    }
+
+    await query('UPDATE annotations SET deletedAt = NULL WHERE id = ?', [annId]);
+    const rows = await query(
+      `SELECT id, userId, nickname, type, content, style, x, y, createdAt
+       FROM annotations WHERE id = ?`,
+      [annId]
+    );
+    res.json({ success: true, annotation: rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch('/api/posts/:id/annotations/:annId', async (req, res, next) => {
+  try {
+    const { id: postId, annId } = req.params;
+    const { userId, x, y, rotate, scale, content, color, fontSize } = req.body;
+
+    const annRows = await query('SELECT * FROM annotations WHERE id = ? AND postId = ?', [annId, postId]);
+    const ann = annRows[0];
+    if (!ann) return res.status(404).json({ message: '批注不存在' });
+    if (ann.deletedAt) return res.status(404).json({ message: '批注已被删除' });
+
+    const postRows = await query('SELECT publisherId FROM posts WHERE id = ?', [postId]);
+    const post = postRows[0];
+    const isOwner = ann.userId === userId;
+    const isPublisher = post && post.publisherId === userId;
+    if (!isOwner && !isPublisher) {
+      return res.status(403).json({ message: '无权修改该批注' });
+    }
+
+    // 坐标:未提供则保持原值
+    const nx = x === undefined ? Number(ann.x) : Number(x);
+    const ny = y === undefined ? Number(ann.y) : Number(y);
+    if (!(nx >= 0 && nx <= 100 && ny >= 0 && ny <= 100)) {
+      return res.status(400).json({ message: '坐标超出范围' });
+    }
+
+    // 旋转角 / 缩放 / 颜色 / 字号:可选,合并进 style JSON
+    let styleStr = ann.style;
+    if (rotate !== undefined || scale !== undefined || color !== undefined || fontSize !== undefined) {
+      let style = {};
+      try { style = JSON.parse(ann.style || '{}'); } catch (e) { style = {}; }
+      if (rotate !== undefined) {
+        const r = Number(rotate);
+        if (!(r >= -180 && r <= 180)) {
+          return res.status(400).json({ message: '旋转角度超出范围' });
+        }
+        style.rotate = r;
+      }
+      if (scale !== undefined) {
+        const s = Number(scale);
+        if (!(s >= 0.5 && s <= 2)) {
+          return res.status(400).json({ message: '缩放比例超出范围' });
+        }
+        style.scale = s;
+      }
+      if (color !== undefined) {
+        if (!/^#[0-9a-fA-F]{6}$/.test(String(color))) {
+          return res.status(400).json({ message: '颜色格式不合法' });
+        }
+        style.color = String(color);
+      }
+      if (fontSize !== undefined) {
+        const fs = Number(fontSize);
+        if (!(fs >= 20 && fs <= 80)) {
+          return res.status(400).json({ message: '字号超出范围' });
+        }
+        style.fontSize = fs;
+      }
+      styleStr = JSON.stringify(style);
+    }
+
+    // 文字内容:可选,仅文字批注可改,印章内容(emoji)不允许改
+    let contentStr = ann.content;
+    if (content !== undefined) {
+      if (ann.type !== 'text') {
+        return res.status(400).json({ message: '印章内容不可编辑' });
+      }
+      const c = String(content).trim();
+      if (!c) {
+        return res.status(400).json({ message: '批注内容不能为空' });
+      }
+      if (c.length > 200) {
+        return res.status(400).json({ message: '批注内容过长' });
+      }
+      contentStr = c;
+    }
+
+    await query('UPDATE annotations SET x = ?, y = ?, style = ?, content = ? WHERE id = ?', [nx, ny, styleStr, contentStr, annId]);
+
+    const rows = await query(
+      `SELECT id, userId, nickname, type, content, style, x, y, createdAt
+       FROM annotations WHERE id = ?`,
+      [annId]
+    );
+    res.json({ success: true, annotation: rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 点赞 / 取消点赞(切换)——参与者可操作
+app.post('/api/posts/:id/annotations/:annId/like', async (req, res, next) => {
+  try {
+    const { id: postId, annId } = req.params;
+    const { userId } = req.body;
+
+    const annRows = await query('SELECT id FROM annotations WHERE id = ? AND postId = ? AND deletedAt IS NULL', [annId, postId]);
+    if (!annRows[0]) return res.status(404).json({ message: '批注不存在' });
+
+    const postRows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
+    const post = postRows[0];
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
+    if (!userId || !(await isParticipant(postId, userId, post))) {
+      return res.status(403).json({ message: '只有任务参与者可以点赞' });
+    }
+
+    const existing = await query('SELECT id FROM annotation_likes WHERE annId = ? AND userId = ?', [annId, userId]);
+    let liked;
+    if (existing[0]) {
+      await query('DELETE FROM annotation_likes WHERE id = ?', [existing[0].id]);
+      liked = false;
+    } else {
+      await query('INSERT INTO annotation_likes (id, annId, userId) VALUES (?, ?, ?)', [createId('alike'), annId, userId]);
+      liked = true;
+    }
+    const cntRows = await query('SELECT COUNT(*) AS cnt FROM annotation_likes WHERE annId = ?', [annId]);
+    res.json({ success: true, liked, likeCount: Number(cntRows[0].cnt) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 查询某条批注的回复列表
+app.get('/api/posts/:id/annotations/:annId/replies', async (req, res, next) => {
+  try {
+    const { id: postId, annId } = req.params;
+    const annRows = await query('SELECT id FROM annotations WHERE id = ? AND postId = ? AND deletedAt IS NULL', [annId, postId]);
+    if (!annRows[0]) return res.status(404).json({ message: '批注不存在' });
+
+    const replies = await query(
+      `SELECT id, userId, nickname, content, createdAt
+       FROM annotation_replies WHERE annId = ? ORDER BY createdAt ASC`,
+      [annId]
+    );
+    res.json({ success: true, replies });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 新增回复——参与者可操作
+app.post('/api/posts/:id/annotations/:annId/replies', async (req, res, next) => {
+  try {
+    const { id: postId, annId } = req.params;
+    const { userId, content } = req.body;
+
+    const annRows = await query('SELECT id FROM annotations WHERE id = ? AND postId = ? AND deletedAt IS NULL', [annId, postId]);
+    if (!annRows[0]) return res.status(404).json({ message: '批注不存在' });
+
+    const postRows = await query('SELECT * FROM posts WHERE id = ?', [postId]);
+    const post = postRows[0];
+    if (!post) return res.status(404).json({ message: '帖子不存在' });
+    if (!userId || !(await isParticipant(postId, userId, post))) {
+      return res.status(403).json({ message: '只有任务参与者可以回复' });
+    }
+    const text = String(content || '').trim();
+    if (!text) return res.status(400).json({ message: '回复内容不能为空' });
+    if (text.length > 200) return res.status(400).json({ message: '回复不能超过 200 字' });
+
+    const user = await getUserById(userId);
+    if (!user) return res.status(400).json({ message: '用户不存在' });
+
+    const id = createId('areply');
+    await query(
+      'INSERT INTO annotation_replies (id, annId, userId, nickname, content) VALUES (?, ?, ?, ?, ?)',
+      [id, annId, userId, user.nickname, text]
+    );
+    const rows = await query(
+      'SELECT id, userId, nickname, content, createdAt FROM annotation_replies WHERE id = ?',
+      [id]
+    );
+    res.json({ success: true, reply: rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 删除回复——回复作者本人或楼主
+app.delete('/api/posts/:id/annotations/:annId/replies/:replyId', async (req, res, next) => {
+  try {
+    const { id: postId, annId, replyId } = req.params;
+    const { userId } = req.body;
+
+    const replyRows = await query('SELECT * FROM annotation_replies WHERE id = ? AND annId = ?', [replyId, annId]);
+    const reply = replyRows[0];
+    if (!reply) return res.status(404).json({ message: '回复不存在' });
+
+    const postRows = await query('SELECT publisherId FROM posts WHERE id = ?', [postId]);
+    const post = postRows[0];
+    const isOwner = reply.userId === userId;
+    const isPublisher = post && post.publisherId === userId;
+    if (!isOwner && !isPublisher) {
+      return res.status(403).json({ message: '无权删除该回复' });
+    }
+
+    await query('DELETE FROM annotation_replies WHERE id = ?', [replyId]);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ message: err.message || '服务器内部错误' });
@@ -910,7 +1518,10 @@ app.use((err, _req, res, _next) => {
 async function startServer() {
   try {
     await initDb();
-    app.listen(PORT, () => {
+    const httpServer = http.createServer(app);
+    const chatServer = createChatServer(httpServer);
+    app.locals.chatServer = chatServer;
+    httpServer.listen(PORT, () => {
       console.log(`Task Buddy backend listening on http://localhost:${PORT}`);
     });
   } catch (error) {

@@ -71,8 +71,9 @@ function completePost(id, userId) {
   return request({ url: `/api/posts/${id}/complete`, method: 'POST', data: { userId } });
 }
 
-function submitEvidence(postId, userId, submitterName, content) {
-  return request({ url: `/api/posts/${postId}/evidence`, method: 'POST', data: { userId, submitterName, content } });
+function submitEvidence(postId, userId, submitterName, content, imageUrls = []) {
+  const relativeUrls = imageUrls.map(u => u.startsWith(config.apiBaseUrl) ? u.slice(config.apiBaseUrl.length) : u);
+  return request({ url: `/api/posts/${postId}/evidence`, method: 'POST', data: { userId, submitterName, content, imageUrls: relativeUrls } });
 }
 
 function joinPost(id, userId) {
@@ -91,6 +92,14 @@ function submitEvaluation(postId, userId, toId, score, content) {
   return request({ url: `/api/posts/${postId}/evaluate`, method: 'POST', data: { userId, toId, score, content } });
 }
 
+function submitCompletionVote(postId, userId, targetId, vote) {
+  return request({
+    url: `/api/posts/${postId}/completion-vote`,
+    method: 'POST',
+    data: { userId, targetId, vote }
+  });
+}
+
 function startPost(postId, userId) {
   return request({ url: `/api/posts/${postId}/start`, method: 'POST', data: { userId } });
 }
@@ -107,6 +116,54 @@ function getEvaluationsReceived(userId) {
   return request({ url: `/api/users/${userId}/evaluations-received` });
 }
 
+function getPointLogs(userId) {
+  return request({ url: `/api/users/${userId}/point-logs` });
+}
+
+function getAnnotations(postId, viewerId) {
+  const q = viewerId ? `?viewerId=${encodeURIComponent(viewerId)}` : '';
+  return request({ url: `/api/posts/${postId}/annotations${q}` });
+}
+
+function createAnnotation(postId, payload) {
+  return request({
+    url: `/api/posts/${postId}/annotations`,
+    method: 'POST',
+    data: payload
+  });
+}
+
+function deleteAnnotation(postId, annId, userId) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}`,
+    method: 'DELETE',
+    data: { userId }
+  });
+}
+
+function uploadEvidenceImage(localPath, userId) {
+  return new Promise((resolve, reject) => {
+    wx.uploadFile({
+      url: `${config.apiBaseUrl}/api/upload?userId=${encodeURIComponent(userId)}`,
+      filePath: localPath,
+      name: 'file',
+      success: (res) => {
+        try {
+          const data = JSON.parse(res.data);
+          if (res.statusCode >= 200 && res.statusCode < 300 && data.url) {
+            resolve(config.apiBaseUrl + data.url);
+          } else {
+            reject(new Error(data.message || '上传失败'));
+          }
+        } catch (e) {
+          reject(new Error('上传响应解析失败'));
+        }
+      },
+      fail: (err) => reject(new Error(err.errMsg || '上传失败'))
+    });
+  });
+}
+
 // ================== 管理员专用 API ==================
 
 function adminLogin(password) {
@@ -121,10 +178,122 @@ function updatePostAuditStatus(id, auditStatus) {
   return request({ url: `/api/admin/posts/${id}/audit-status`, method: 'PUT', data: { auditStatus } });
 }
 
+function getChatHistory(postId, userId) {
+  return request({ url: `/api/chat/${postId}/history?userId=${encodeURIComponent(userId)}` });
+}
+
+function updateAnnotationPosition(postId, annId, userId, x, y) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}`,
+    method: 'PATCH',
+    data: { userId, x, y }
+  });
+}
+
+function updateAnnotationRotate(postId, annId, userId, rotate) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}`,
+    method: 'PATCH',
+    data: { userId, rotate }
+  });
+}
+
+function updateAnnotationScale(postId, annId, userId, scale) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}`,
+    method: 'PATCH',
+    data: { userId, scale }
+  });
+}
+
+function updateAnnotationContent(postId, annId, userId, patch) {
+  // patch 可含 content / color / fontSize,各自可选
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}`,
+    method: 'PATCH',
+    data: { userId, ...patch }
+  });
+}
+
+function toggleAnnotationLike(postId, annId, userId) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}/like`,
+    method: 'POST',
+    data: { userId }
+  });
+}
+
+function getAnnotationReplies(postId, annId) {
+  return request({ url: `/api/posts/${postId}/annotations/${annId}/replies` });
+}
+
+function createAnnotationReply(postId, annId, userId, content) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}/replies`,
+    method: 'POST',
+    data: { userId, content }
+  });
+}
+
+function deleteAnnotationReply(postId, annId, replyId, userId) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}/replies/${replyId}`,
+    method: 'DELETE',
+    data: { userId }
+  });
+}
+
+function getAnnotationTrash(postId, viewerId) {
+  const q = viewerId ? `?viewerId=${encodeURIComponent(viewerId)}` : '';
+  return request({ url: `/api/posts/${postId}/annotations/trash${q}` });
+}
+
+function restoreAnnotation(postId, annId, userId) {
+  return request({
+    url: `/api/posts/${postId}/annotations/${annId}/restore`,
+    method: 'POST',
+    data: { userId }
+  });
+}
+
 module.exports = {
-  login, bind, getFeed, getPostDetail, getRanking, getProfile,
-  updateProfile, createPost, updatePost, deletePost, completePost,
-  submitEvidence, joinPost, quitPost, abandonPost, submitEvaluation,
-  startPost, requestComplete, getEvaluationsReceived,
-  adminLogin, getAdminFeed, updatePostAuditStatus
+  login,
+  bind,
+  getFeed,
+  getPostDetail,
+  getRanking,
+  getProfile,
+  updateProfile,
+  createPost,
+  updatePost,
+  deletePost,
+  completePost,
+  submitEvidence,
+  uploadEvidenceImage,
+  joinPost,
+  quitPost,
+  abandonPost,
+  submitEvaluation,
+  submitCompletionVote,
+  startPost,
+  requestComplete,
+  getEvaluationsReceived,
+  getPointLogs,
+  getAnnotations,
+  createAnnotation,
+  deleteAnnotation,
+  adminLogin,
+  getAdminFeed,
+  updatePostAuditStatus,
+  getChatHistory,
+  updateAnnotationPosition,
+  updateAnnotationRotate,
+  updateAnnotationScale,
+  updateAnnotationContent,
+  toggleAnnotationLike,
+  getAnnotationReplies,
+  createAnnotationReply,
+  deleteAnnotationReply,
+  getAnnotationTrash,
+  restoreAnnotation
 };

@@ -4,7 +4,12 @@
     <image class="avatar" src="{{user.avatarUrl}}" mode="aspectFill" />
     <view class="profile-main">
       <view class="profile-name">{{user.nickname}}</view>
-      <view class="muted">积分 {{user.points}} · 排名 #{{user.rank}} · 完成率 {{user.completionRate}}%</view>
+      <view class="score-row" bindtap="goScoreHistory">
+        <text class="muted">积分 </text>
+        <text class="score-value">{{user.points}}</text>
+        <text class="muted"> · 排名 #{{user.rank}} · 完成率 {{user.completionRate}}%</text>
+        <text class="score-hint"> 查看记录 ›</text>
+      </view>
       <view class="ai-box">
         <view class="tag">AI 评价</view>
         <view class="ai-text">{{user.aiComment}}</view>
