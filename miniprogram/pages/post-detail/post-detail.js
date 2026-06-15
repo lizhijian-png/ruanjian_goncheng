@@ -82,6 +82,8 @@ Page({
     this.setData({ currentUserId });
     await this._loadDetail(options.id);
     if (this.data.isParticipant) {
+      // 首次加载:先同步通知快照(含弹窗),再启动轮询
+      await this._syncNotifSnapshot(true);
       this._startPolling();
     }
   },
@@ -693,16 +695,20 @@ Page({
     }
   },
   // ===== 通知轮询 & 弹窗 =====
-  async _syncNotifSnapshot() {
+  async _syncNotifSnapshot(showPopup = false) {
     const { currentUserId, post } = this.data;
     if (!currentUserId || !post) return;
     try {
       const res = await api.getUnreadCounts(currentUserId, post.id);
       this.data._prevNotifSnapshot = {};
-      for (const key of ['task_start', 'evidence_submit', 'new_chat']) {
+      for (const key of ['task_start', 'evidence_submit', 'evaluation_submit', 'new_chat']) {
         if (res[key] > 0) this.data._prevNotifSnapshot[key] = res[key];
       }
       this.setData({ unreadChat: res.chat || 0 });
+      // 首次加载时如果有未读通知,直接弹窗
+      if (showPopup && res.latest) {
+        this._showNotificationPopup(res.latest.type, res.latest.content);
+      }
     } catch (e) {
       this.data._prevNotifSnapshot = {};
     }
@@ -735,7 +741,7 @@ Page({
         }
       }
       this.data._prevNotifSnapshot = {};
-      for (const key of ['task_start', 'evidence_submit', 'new_chat']) {
+      for (const key of ['task_start', 'evidence_submit', 'evaluation_submit', 'new_chat']) {
         if (res[key] > 0) this.data._prevNotifSnapshot[key] = res[key];
       }
     } catch (e) {
@@ -772,7 +778,7 @@ Page({
     } else if (notificationType === 'evidence_submit') {
       this.openEvidencePage();
     }
-    // task_start: 弹窗消失即可,页面已刷新状态
+    // task_start / evaluation_submit: 弹窗消失即可,页面已刷新状态
   },
   openChat() {
     // 进入聊天室前标记聊天已读
