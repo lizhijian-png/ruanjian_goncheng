@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <view class="container" wx:if="{{!loading && user.id}}">
   <view class="profile-card profile-header">
     <image class="avatar" src="{{user.avatarUrl}}" mode="aspectFill" />
@@ -60,3 +61,7 @@
 <view class="container loading-wrap" wx:if="{{loading}}">
   <text class="muted">加载中…</text>
 </view>
+=======
+<!--pages/user-profile/user-profile.wxml-->
+<text>pages/user-profile/user-profile.wxml</text>
+>>>>>>> d58469bc441ee0a956f1de1dba0af7bc1afd10d6

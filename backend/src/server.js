@@ -897,6 +897,28 @@ app.post('/api/posts/:id/evaluate', async (req, res, next) => {
     );
 
     await updateUserAvgScore(toId);
+
+    // 通知：评价提交后通知其他参与者
+    const targetUser = await getUserById(toId);
+    const allEvalParticipants = await query(
+      `SELECT userId FROM post_buddies WHERE postId = ? AND userId != ?
+       UNION SELECT ? AS userId`,
+      [req.params.id, userId, post.publisherId]
+    );
+    const evalNotifiedIds = new Set();
+    for (const p of allEvalParticipants) {
+      if (p.userId === userId || evalNotifiedIds.has(p.userId)) continue;
+      evalNotifiedIds.add(p.userId);
+      await insertNotification({
+        id: createId('n'),
+        userId: p.userId,
+        postId: req.params.id,
+        type: 'evaluation_submit',
+        relatedUserId: userId,
+        content: `${user.nickname} 对 ${targetUser.nickname} 给出了 ${s} 星评价`
+      });
+    }
+
     const finalPost = (await query('SELECT * FROM posts WHERE id = ?', [req.params.id]))[0];
     res.status(201).json({ post: mapPost(finalPost) });
   } catch (error) {
@@ -1248,6 +1270,58 @@ app.post('/api/chat/:postId/read', async (req, res, next) => {
     if (!userId) return res.status(400).json({ message: '缺少 userId' });
 
     await upsertChatReadMarker(userId, postId);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 跨帖子聚合未读通知,按 buddy_join → new_chat → evidence_submit → task_start 优先级排序
+app.get('/api/users/:id/notifications/unread-all', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const rows = await query(
+      `SELECT n.type, n.content, n.postId, p.title AS postTitle
+       FROM notifications n
+       JOIN posts p ON p.id = n.postId
+       WHERE n.userId = ? AND n.isRead = 0
+       ORDER BY n.createdAt DESC`,
+      [id]
+    );
+    // 按类型分组,每组保留最新一条内容和关联帖子信息
+    const TYPE_PRIORITY = { new_chat: 0, evidence_submit: 1, evaluation_submit: 2, task_start: 3 };
+    const groups = {};
+    for (const row of rows) {
+      if (!groups[row.type]) {
+        groups[row.type] = { type: row.type, count: 0, latestContent: '', postTitle: '', postId: '' };
+      }
+      groups[row.type].count++;
+      if (!groups[row.type].latestContent) {
+        groups[row.type].latestContent = row.content;
+        groups[row.type].postTitle = row.postTitle;
+        groups[row.type].postId = row.postId;
+      }
+    }
+    const sorted = Object.values(groups).sort((a, b) =>
+      (TYPE_PRIORITY[a.type] ?? 99) - (TYPE_PRIORITY[b.type] ?? 99)
+    );
+    const total = rows.length;
+    res.json({ groups: sorted, total });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 标记指定类型的所有通知为已读(跨帖子)
+app.post('/api/users/:id/notifications/read-all', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { type } = req.body;
+    if (!type) return res.status(400).json({ message: '缺少 type' });
+    await query(
+      'UPDATE notifications SET isRead = 1 WHERE userId = ? AND type = ? AND isRead = 0',
+      [id, type]
+    );
     res.json({ success: true });
   } catch (error) {
     next(error);

@@ -35,7 +35,14 @@ Page({
     // 筛选标签显示
     filterLabel: '',
     categories: CATEGORIES,
-    todayDate: ''
+    todayDate: '',
+    // 通知队列
+    notificationQueue: [],
+    showHomeNotif: false,
+    homeNotifContent: '',
+    homeNotifType: '',
+    homeNotifPostId: '',
+    homeNotifPostTitle: ''
   },
 
   onLoad() {
@@ -43,6 +50,7 @@ Page({
     const pad = n => String(n).padStart(2, '0');
     const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     this.setData({ todayDate: today });
+    this._lastChatCount = -1;
   },
 
   async onShow() {
@@ -55,8 +63,10 @@ Page({
         rank: userInfo.rank || '-'
       }
     });
-    // 重置并加载第一页
+    // 先加载页面数据
     await this._resetAndLoad();
+    // 页面渲染完成后检查未读通知（每次 onShow 都会检查，但有数据时才弹窗）
+    this._checkNotifications(userInfo.id);
   },
 
   async onReachBottom() {
@@ -192,5 +202,87 @@ Page({
     wx.navigateTo({
       url: `/pages/post-detail/post-detail?id=${event.currentTarget.dataset.id}`
     });
+  },
+
+  // ===== 通知弹窗 =====
+
+  async _checkNotifications(userId) {
+    if (!userId) return;
+    try {
+      const result = await api.getAllUnreadCounts(userId);
+      const groups = result.groups || [];
+      // 广场只展示聊天消息弹窗,其他通知留在帖子详情页展示
+      const chatGroup = groups.find(g => g.type === 'new_chat');
+      const chatCount = chatGroup ? chatGroup.count : 0;
+      // 聊天未读数没变则跳过（首次 _lastChatCount === -1 总会检查）
+      if (chatCount === this._lastChatCount) return;
+      this._lastChatCount = chatCount;
+      if (chatCount === 0) return;
+      this.setData({ notificationQueue: [chatGroup] });
+      this._showNextNotif();
+    } catch (e) {
+      // 静默失败
+    }
+  },
+
+  _showNextNotif() {
+    const queue = this.data.notificationQueue;
+    if (queue.length === 0) return;
+    const next = queue[0];
+    const typeLabel = { new_chat: '新聊天消息', evidence_submit: '新证据提交', evaluation_submit: '新评价提交', task_start: '任务开始提醒' };
+    this.setData({
+      showHomeNotif: true,
+      homeNotifType: next.type,
+      homeNotifContent: next.latestContent,
+      homeNotifPostId: next.postId,
+      homeNotifPostTitle: next.postTitle || typeLabel[next.type] || '通知'
+    });
+    // 6 秒后自动关闭
+    if (this._notifTimer) clearTimeout(this._notifTimer);
+    this._notifTimer = setTimeout(() => {
+      this.dismissHomeNotif();
+    }, 6000);
+  },
+
+  dismissHomeNotif() {
+    if (this._notifTimer) {
+      clearTimeout(this._notifTimer);
+      this._notifTimer = null;
+    }
+    const queue = this.data.notificationQueue;
+    const current = queue.shift();
+    this.setData({ notificationQueue: queue, showHomeNotif: false });
+    // 标记该类型通知为已读
+    if (current && current.type) {
+      const app = getApp();
+      const userInfo = app.globalData.userInfo || wx.getStorageSync('userInfo') || {};
+      if (userInfo.id) {
+        api.markAllNotificationsRead(userInfo.id, current.type).catch(() => {});
+      }
+    }
+    // 延迟展示下一条
+    setTimeout(() => this._showNextNotif(), 500);
+  },
+
+  onHomeNotifTap() {
+    if (this._notifTimer) {
+      clearTimeout(this._notifTimer);
+      this._notifTimer = null;
+    }
+    const { homeNotifType, homeNotifPostId, notificationQueue } = this.data;
+    const queue = [...notificationQueue];
+    const current = queue.shift();
+    this.setData({ notificationQueue: queue, showHomeNotif: false });
+    // 标记该类型通知为已读
+    if (current && current.type) {
+      const app = getApp();
+      const userInfo = app.globalData.userInfo || wx.getStorageSync('userInfo') || {};
+      if (userInfo.id) {
+        api.markAllNotificationsRead(userInfo.id, current.type).catch(() => {});
+      }
+    }
+    if (homeNotifPostId) {
+      wx.navigateTo({ url: `/pages/post-detail/post-detail?id=${homeNotifPostId}` });
+    }
   }
 });
