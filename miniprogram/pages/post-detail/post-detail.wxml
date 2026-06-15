@@ -1,4 +1,9 @@
 <view class="container" wx:if="{{post}}">
+  <!-- 通知弹窗 -->
+  <view wx:if="{{showNotification}}" class="notif-popup" bindtap="onNotifTap">
+    <text class="notif-text">{{notificationContent}}</text>
+    <text class="notif-close" catchtap="dismissNotif">✕</text>
+  </view>
   <view wx:if="{{placingMode}}" class="placing-hint">点击帖子上要贴批注的位置</view>
   <view class="post-card detail-card" bindtap="onCardTap">
     <view class="tag">任务详情</view>
@@ -88,7 +93,10 @@
         wx:if="{{canOpenChat}}"
         class="ghost-btn action-btn"
         bindtap="openChat"
-      >进入聊天室</button>
+        style="position:relative;"
+      >进入聊天室
+        <view wx:if="{{unreadChat > 0}}" class="badge">{{unreadChat}}</view>
+      </button>
     </view>
 
     <!-- 完成证据 -->

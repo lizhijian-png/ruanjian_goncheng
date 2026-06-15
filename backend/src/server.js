@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const { initDb, mapPost, query, withTransaction, getUserRank } = require('./db');
+const { initDb, mapPost, query, withTransaction, getUserRank,
+        insertNotification, getUnreadCounts, markNotificationsRead, upsertChatReadMarker } = require('./db');
 const { generateAiComment } = require('./ai');
 const multer = require('multer');
 const path = require('path');
@@ -676,6 +677,22 @@ app.post('/api/posts/:id/join', async (req, res, next) => {
 
     const fresh = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
     const buddies = await query('SELECT userId, nickname, joinedAt, evaluated FROM post_buddies WHERE postId = ? ORDER BY joinedAt ASC', [req.params.id]);
+
+    // 通知：自动满员开始时向所有搭子发送通知
+    if (fresh[0].status === '进行中' && post.status !== '进行中') {
+      const notifyBuddies = await query('SELECT userId FROM post_buddies WHERE postId = ?', [req.params.id]);
+      for (const b of notifyBuddies) {
+        await insertNotification({
+          id: createId('n'),
+          userId: b.userId,
+          postId: req.params.id,
+          type: 'task_start',
+          relatedUserId: null,
+          content: `任务「${fresh[0].title}」已开始，快去执行吧！`
+        });
+      }
+    }
+
     res.json({ post: mapPost(fresh[0]), buddies });
   } catch (error) {
     next(error);
@@ -802,6 +819,27 @@ app.post('/api/posts/:id/evidence', async (req, res, next) => {
       imageUrls: safeImageUrls
     };
     const statusCode = result.affectedRows === 1 ? 201 : 200;
+
+    // 通知：证据提交后通知其他参与者
+    const allParticipants = await query(
+      `SELECT userId FROM post_buddies WHERE postId = ? AND userId != ?
+       UNION SELECT ? AS userId`,
+      [req.params.id, userId, post.publisherId]
+    );
+    const notifiedIds = new Set();
+    for (const p of allParticipants) {
+      if (p.userId === userId || notifiedIds.has(p.userId)) continue;
+      notifiedIds.add(p.userId);
+      await insertNotification({
+        id: createId('n'),
+        userId: p.userId,
+        postId: req.params.id,
+        type: 'evidence_submit',
+        relatedUserId: userId,
+        content: `${safeSubmitterName} 提交了任务证据`
+      });
+    }
+
     res.status(statusCode).json(evidence);
   } catch (error) {
     next(error);
@@ -1002,6 +1040,20 @@ app.post('/api/posts/:id/start', async (req, res, next) => {
 
     await query('UPDATE posts SET status = ? WHERE id = ?', ['进行中', req.params.id]);
     const freshRows = await query('SELECT * FROM posts WHERE id = ?', [req.params.id]);
+
+    // 通知：手动开始时向所有搭子发送通知
+    const buddyRows = await query('SELECT userId FROM post_buddies WHERE postId = ?', [req.params.id]);
+    for (const b of buddyRows) {
+      await insertNotification({
+        id: createId('n'),
+        userId: b.userId,
+        postId: req.params.id,
+        type: 'task_start',
+        relatedUserId: null,
+        content: `任务「${freshRows[0].title}」已开始，快去执行吧！`
+      });
+    }
+
     res.json(mapPost(freshRows[0]));
   } catch (error) {
     next(error);
@@ -1146,6 +1198,57 @@ app.get('/api/users/:id/point-logs', async (req, res, next) => {
       [req.params.id]
     );
     res.json(rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ======================= 通知相关 API ======================= //
+
+// 查询指定帖子的各类未读通知数
+app.get('/api/users/:id/notifications/unread', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { postId } = req.query;
+    if (!postId) return res.status(400).json({ message: '缺少 postId' });
+
+    const counts = await getUnreadCounts(id, postId);
+
+    // 同时返回最新一条未读通知(用于弹窗展示)
+    const latestRows = await query(
+      'SELECT type, content FROM notifications WHERE userId = ? AND postId = ? AND isRead = 0 ORDER BY createdAt DESC LIMIT 1',
+      [id, postId]
+    );
+
+    res.json({ ...counts, latest: latestRows[0] || null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 标记指定类型通知为已读
+app.post('/api/users/:id/notifications/read', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { postId, type } = req.body;
+    if (!postId || !type) return res.status(400).json({ message: '缺少 postId 或 type' });
+
+    await markNotificationsRead(id, postId, type);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 标记聊天已读
+app.post('/api/chat/:postId/read', async (req, res, next) => {
+  try {
+    const { postId } = req.params;
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ message: '缺少 userId' });
+
+    await upsertChatReadMarker(userId, postId);
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }

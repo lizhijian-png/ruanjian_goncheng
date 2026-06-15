@@ -394,6 +394,36 @@ async function createTables() {
       INDEX idx_messages_postId_createdAt (postId, createdAt)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+
+  // 通知表
+  await query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id            VARCHAR(64) PRIMARY KEY,
+      userId        VARCHAR(64) NOT NULL,
+      postId        VARCHAR(64) NOT NULL,
+      type          VARCHAR(30) NOT NULL,
+      relatedUserId VARCHAR(64) DEFAULT NULL,
+      content       TEXT NOT NULL,
+      isRead        TINYINT(1) NOT NULL DEFAULT 0,
+      createdAt     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_notify_user_read (userId, isRead, createdAt),
+      INDEX idx_notify_user_post (userId, postId, type, isRead),
+      CONSTRAINT fk_notify_user FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT fk_notify_post FOREIGN KEY (postId) REFERENCES posts(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  // 聊天已读标记表
+  await query(`
+    CREATE TABLE IF NOT EXISTS chat_read_markers (
+      userId      VARCHAR(64) NOT NULL,
+      postId      VARCHAR(64) NOT NULL,
+      lastReadAt  DATETIME NOT NULL,
+      UNIQUE KEY uq_chat_read (userId, postId),
+      CONSTRAINT fk_crm_user FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT fk_crm_post FOREIGN KEY (postId) REFERENCES posts(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
 }
 
 async function getUserRank(userId) {
@@ -436,6 +466,69 @@ async function deleteMessagesByPost(postId) {
   await query('DELETE FROM messages WHERE postId = ?', [postId]);
 }
 
+// ================== 通知相关 ==================
+
+async function insertNotification(notification) {
+  const { id, userId, postId, type, relatedUserId, content } = notification;
+  await query(
+    'INSERT INTO notifications (id, userId, postId, type, relatedUserId, content) VALUES (?, ?, ?, ?, ?, ?)',
+    [id, userId, postId, type, relatedUserId || null, content]
+  );
+}
+
+async function getUnreadCounts(userId, postId) {
+  const notifRows = await query(
+    `SELECT type, COUNT(*) AS cnt FROM notifications
+     WHERE userId = ? AND postId = ? AND isRead = 0
+     GROUP BY type`,
+    [userId, postId]
+  );
+  const byType = {};
+  let total = 0;
+  for (const row of notifRows) {
+    const n = Number(row.cnt);
+    byType[row.type] = n;
+    total += n;
+  }
+
+  // 聊天未读数: 只算他人的消息,自己的不计入未读
+  const markerRows = await query(
+    'SELECT lastReadAt FROM chat_read_markers WHERE userId = ? AND postId = ?',
+    [userId, postId]
+  );
+  let chatCount = 0;
+  if (markerRows[0]) {
+    const [chatRows] = await createPool().execute(
+      'SELECT COUNT(*) AS cnt FROM messages WHERE postId = ? AND createdAt > ? AND senderId != ?',
+      [postId, markerRows[0].lastReadAt, userId]
+    );
+    chatCount = Number(chatRows[0].cnt);
+  } else {
+    const [chatRows] = await createPool().execute(
+      'SELECT COUNT(*) AS cnt FROM messages WHERE postId = ? AND senderId != ?',
+      [postId, userId]
+    );
+    chatCount = Number(chatRows[0].cnt);
+  }
+
+  return { ...byType, chat: chatCount, total: total + chatCount };
+}
+
+async function markNotificationsRead(userId, postId, type) {
+  await query(
+    'UPDATE notifications SET isRead = 1 WHERE userId = ? AND postId = ? AND type = ? AND isRead = 0',
+    [userId, postId, type]
+  );
+}
+
+async function upsertChatReadMarker(userId, postId) {
+  await query(
+    `INSERT INTO chat_read_markers (userId, postId, lastReadAt) VALUES (?, ?, NOW())
+     ON DUPLICATE KEY UPDATE lastReadAt = NOW()`,
+    [userId, postId]
+  );
+}
+
 module.exports = {
   dbConfig,
   initDb,
@@ -445,5 +538,9 @@ module.exports = {
   getUserRank,
   insertMessage,
   getRecentMessages,
-  deleteMessagesByPost
+  deleteMessagesByPost,
+  insertNotification,
+  getUnreadCounts,
+  markNotificationsRead,
+  upsertChatReadMarker
 };
