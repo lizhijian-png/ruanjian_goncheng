@@ -807,7 +807,8 @@ app.post('/api/posts/:id/evidence', async (req, res, next) => {
 
     const now = new Date();
     const ended = post.endTime && new Date(post.endTime) <= now;
-    if (post.status !== '已完成' && !ended) {
+    const inWrapUp = post.status === '待评价' || post.status === '已完成';
+    if (!inWrapUp && !ended) {
       const endStr = post.endTime ? new Date(post.endTime).toLocaleString('zh-CN') : '未设置结束时间';
       return res.status(400).json({ message: `任务尚未结束，证据须在任务完成后或到达结束时间（${endStr}）后提交` });
     }
