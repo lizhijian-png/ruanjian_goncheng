@@ -66,22 +66,44 @@ Page({
     showTrash: false,
     trashList: [],
     canOpenChat: false,
+    // 通知
+    unreadChat: 0,
+    showNotification: false,
+    notificationContent: '',
+    notificationType: '',
+    _prevNotifSnapshot: {},
   },
   async onLoad(options) {
     this._firstShow = true;
+    this._pollPostId = options.id;
     const app = getApp();
     const userInfo = app.globalData.userInfo || wx.getStorageSync('userInfo');
     const currentUserId = userInfo ? userInfo.id : '';
     this.setData({ currentUserId });
     await this._loadDetail(options.id);
+    if (this.data.isParticipant) {
+      this._startPolling();
+    }
   },
   onShow() {
     if (this._firstShow) { this._firstShow = false; return; }
     if ((this._returnFromEvaluate || this._returnFromEvidence) && this.data.post) {
       this._returnFromEvaluate = false;
       this._returnFromEvidence = false;
-      this._loadDetail(this.data.post.id);
+      this._loadDetail(this.data.post.id).then(() => {
+        if (this.data.isParticipant) this._startPolling();
+      });
+    } else if (this.data.isParticipant) {
+      // 从聊天返回时,先静默同步通知快照,防止旧通知触发弹窗
+      this.setData({ unreadChat: 0 });
+      this._syncNotifSnapshot().then(() => this._startPolling());
     }
+  },
+  onHide() {
+    this._stopPolling();
+  },
+  onUnload() {
+    this._stopPolling();
   },
   async _loadDetail(postId) {
     try {
@@ -670,7 +692,94 @@ Page({
       wx.showToast({ title: error.message || '恢复失败', icon: 'none' });
     }
   },
+  // ===== 通知轮询 & 弹窗 =====
+  async _syncNotifSnapshot() {
+    const { currentUserId, post } = this.data;
+    if (!currentUserId || !post) return;
+    try {
+      const res = await api.getUnreadCounts(currentUserId, post.id);
+      this.data._prevNotifSnapshot = {};
+      for (const key of ['task_start', 'evidence_submit', 'new_chat']) {
+        if (res[key] > 0) this.data._prevNotifSnapshot[key] = res[key];
+      }
+      this.setData({ unreadChat: res.chat || 0 });
+    } catch (e) {
+      this.data._prevNotifSnapshot = {};
+    }
+  },
+  _startPolling() {
+    this._stopPolling();
+    this._pollNotifications(); // 立即执行一次
+    this._pollTimer = setInterval(() => {
+      this._pollNotifications();
+    }, 10000);
+  },
+  _stopPolling() {
+    if (this._pollTimer) {
+      clearInterval(this._pollTimer);
+      this._pollTimer = null;
+    }
+  },
+  async _pollNotifications() {
+    const { currentUserId, post, _prevNotifSnapshot } = this.data;
+    if (!currentUserId || !post) return;
+    try {
+      const res = await api.getUnreadCounts(currentUserId, post.id);
+      this.setData({ unreadChat: res.chat || 0 });
+
+      if (res.latest && res.latest.type) {
+        const prevCount = _prevNotifSnapshot[res.latest.type] || 0;
+        const currentCount = res[res.latest.type] || 0;
+        if (currentCount > prevCount) {
+          this._showNotificationPopup(res.latest.type, res.latest.content);
+        }
+      }
+      this.data._prevNotifSnapshot = {};
+      for (const key of ['task_start', 'evidence_submit', 'new_chat']) {
+        if (res[key] > 0) this.data._prevNotifSnapshot[key] = res[key];
+      }
+    } catch (e) {
+      // 轮询失败静默处理
+    }
+  },
+  _showNotificationPopup(type, content) {
+    if (this._notifDismissTimer) clearTimeout(this._notifDismissTimer);
+    this.setData({
+      showNotification: true,
+      notificationContent: content,
+      notificationType: type
+    });
+    this._notifDismissTimer = setTimeout(() => {
+      this.dismissNotif();
+    }, 3000);
+  },
+  dismissNotif() {
+    if (this._notifDismissTimer) {
+      clearTimeout(this._notifDismissTimer);
+      this._notifDismissTimer = null;
+    }
+    const { currentUserId, post, notificationType } = this.data;
+    this.setData({ showNotification: false, notificationContent: '', notificationType: '' });
+    if (currentUserId && post && notificationType) {
+      api.markNotificationsRead(currentUserId, post.id, notificationType).catch(() => {});
+    }
+  },
+  onNotifTap() {
+    const { notificationType } = this.data;
+    this.dismissNotif();
+    if (notificationType === 'new_chat') {
+      this.openChat();
+    } else if (notificationType === 'evidence_submit') {
+      this.openEvidencePage();
+    }
+    // task_start: 弹窗消失即可,页面已刷新状态
+  },
   openChat() {
+    // 进入聊天室前标记聊天已读
+    const { currentUserId, post } = this.data;
+    if (currentUserId && post) {
+      api.markChatRead(post.id, currentUserId).catch(() => {});
+    }
     wx.navigateTo({
       url: `/pages/chat/chat?postId=${this.data.post.id}`
     });

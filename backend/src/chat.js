@@ -1,8 +1,12 @@
 const { WebSocketServer } = require('ws');
-const { query, insertMessage } = require('./db');
+const { query, insertMessage, insertNotification } = require('./db');
 const url = require('url');
 
 const MAX_CONTENT_LENGTH = 500;
+
+function createId(prefix) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
 
 // rooms: Map<postId, Set<WebSocket>>
 const rooms = new Map();
@@ -97,6 +101,27 @@ function createChatServer(httpServer) {
       } catch (e) {
         console.error('[chat] insertMessage error:', e);
         return;
+      }
+
+      // 插入 new_chat 通知(给除发送者外的其他参与者)
+      try {
+        const participants = await query(
+          `SELECT userId FROM post_buddies WHERE postId = ? AND userId != ?
+           UNION SELECT publisherId FROM posts WHERE id = ? AND publisherId != ?`,
+          [postId, userId, postId, userId]
+        );
+        for (const p of participants) {
+          await insertNotification({
+            id: createId('n'),
+            userId: p.userId,
+            postId,
+            type: 'new_chat',
+            relatedUserId: userId,
+            content: `${senderName}：${content.slice(0, 50)}`
+          });
+        }
+      } catch (e) {
+        console.error('[chat] insertNotification error:', e);
       }
 
       broadcast(postId, {

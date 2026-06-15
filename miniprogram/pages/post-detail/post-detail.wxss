@@ -458,3 +458,44 @@
   font-size: 26rpx;
   border-radius: 30rpx;
 }
+
+/* ===== 通知弹窗 ===== */
+.notif-popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 999;
+  background: rgba(0,0,0,0.85);
+  color: #fff;
+  padding: 12px 40px 12px 16px;
+  font-size: 14px;
+  animation: slideDown 0.3s ease;
+}
+.notif-close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  color: #999;
+  padding: 4px;
+}
+@keyframes slideDown {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(0); }
+}
+
+/* ===== 红点角标 ===== */
+.badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  border-radius: 9px;
+  background: #e11d48;
+  color: #fff;
+  font-size: 11px;
+  text-align: center;
+  padding: 0 4px;
+}
