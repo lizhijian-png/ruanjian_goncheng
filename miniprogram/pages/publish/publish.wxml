@@ -1,4 +1,13 @@
 <view class="container">
+  <!-- 草稿恢复提示横幅 -->
+  <view class="draft-banner" wx:if="{{hasDraft}}">
+    <view class="draft-banner-text">检测到未发布的草稿</view>
+    <view class="draft-banner-btns">
+      <button class="draft-btn draft-btn-secondary" bindtap="discardDraft">丢弃</button>
+      <button class="draft-btn draft-btn-primary" bindtap="onDraftConfirm">恢复</button>
+    </view>
+  </view>
+
   <view class="form-card publish-card">
     <view class="section-title">发布任务贴</view>
     <view class="section-subtitle">支持设置积分奖惩、搭子聊天、互评开关和证据文本占位。</view>
