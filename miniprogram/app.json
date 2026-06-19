@@ -5,6 +5,7 @@
     "pages/publish/publish",
     "pages/ranking/ranking",
     "pages/profile/profile",
+    "pages/user-profile/user-profile",
     "pages/post-detail/post-detail",
     "pages/score-history/score-history",
     "pages/admin/admin",

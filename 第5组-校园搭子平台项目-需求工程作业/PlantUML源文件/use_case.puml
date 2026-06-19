@@ -30,4 +30,9 @@ User --> (查看任务完成率) : R09
 User --> (个人主页管理) : R15
 User --> (展示个人积分) : R16
 User --> (AI自动评价) : R17
+
+' 帖子批注协作模块 R18-R20（需求变更新增）
+Participant --> (帖子批注协作) : R18
+Participant --> (批注点赞与回复) : R19
+Participant --> (批注软删除与回收站) : R20
 @enduml

@@ -120,6 +120,30 @@ function getPointLogs(userId) {
   return request({ url: `/api/users/${userId}/point-logs` });
 }
 
+// ================== 通知相关 API ==================
+
+function getUnreadCounts(userId, postId) {
+  return request({ url: `/api/users/${userId}/notifications/unread?postId=${encodeURIComponent(postId)}` });
+}
+
+function markNotificationsRead(userId, postId, type) {
+  return request({ url: `/api/users/${userId}/notifications/read`, method: 'POST', data: { postId, type } });
+}
+
+function markChatRead(postId, userId) {
+  return request({ url: `/api/chat/${postId}/read`, method: 'POST', data: { userId } });
+}
+
+function getAllUnreadCounts(userId) {
+  return request({ url: `/api/users/${userId}/notifications/unread-all` });
+}
+
+function markAllNotificationsRead(userId, type) {
+  return request({ url: `/api/users/${userId}/notifications/read-all`, method: 'POST', data: { type } });
+}
+
+// ================== 批注 ==================
+
 function getAnnotations(postId, viewerId) {
   const q = viewerId ? `?viewerId=${encodeURIComponent(viewerId)}` : '';
   return request({ url: `/api/posts/${postId}/annotations${q}` });
@@ -279,6 +303,10 @@ module.exports = {
   requestComplete,
   getEvaluationsReceived,
   getPointLogs,
+  getUnreadCounts,
+  getAllUnreadCounts,
+  markNotificationsRead,
+  markChatRead,
   getAnnotations,
   createAnnotation,
   deleteAnnotation,
@@ -295,5 +323,6 @@ module.exports = {
   createAnnotationReply,
   deleteAnnotationReply,
   getAnnotationTrash,
-  restoreAnnotation
+  restoreAnnotation,
+  markAllNotificationsRead
 };

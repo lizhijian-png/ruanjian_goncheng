@@ -1,0 +1,62 @@
+<view class="container" wx:if="{{!loading && user.id}}">
+  <view class="profile-card profile-header">
+    <image class="avatar" src="{{user.avatarUrl}}" mode="aspectFill" />
+    <view class="profile-main">
+      <view class="profile-name">{{user.nickname}}</view>
+      <view class="score-row">
+        <text class="muted">积分 </text>
+        <text class="score-value">{{user.points}}</text>
+        <text class="muted"> · 排名 #{{user.rank}} · 完成率 {{user.completionRate}}%</text>
+      </view>
+      <view class="ai-box">
+        <view class="tag">AI 评价</view>
+        <view class="ai-text">{{user.aiComment}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="section-card operations-card">
+    <view class="section-title">TA 的帖子</view>
+
+    <view class="tab-bar">
+      <view
+        class="tab-item {{activeTab === 'active' ? 'tab-active' : ''}}"
+        data-tab="active"
+        bindtap="switchTab"
+      >活跃</view>
+      <view
+        class="tab-item {{activeTab === 'done' ? 'tab-active' : ''}}"
+        data-tab="done"
+        bindtap="switchTab"
+      >已完成</view>
+      <view
+        class="tab-item {{activeTab === 'abandoned' ? 'tab-active' : ''}}"
+        data-tab="abandoned"
+        bindtap="switchTab"
+      >已放弃</view>
+    </view>
+
+    <block wx:for="{{filteredPosts}}" wx:key="id">
+      <view class="post-card my-post" data-id="{{item.id}}" bindtap="goPostDetail">
+        <view class="my-post-main">
+          <view class="post-title">{{item.title}}</view>
+          <view class="my-post-meta">
+            <view class="muted">{{item.status}}</view>
+            <view class="role-tag {{item.role === 'buddy' ? 'role-tag-buddy' : 'role-tag-publisher'}}">
+              {{item.role === 'buddy' ? '参与' : '发布'}}
+            </view>
+          </view>
+          <view class="muted small-text">+{{item.reward}} / -{{item.penalty}} 积分</view>
+        </view>
+      </view>
+    </block>
+
+    <view class="empty-tip" wx:if="{{filteredPosts.length === 0}}">
+      <text>暂无相关帖子</text>
+    </view>
+  </view>
+</view>
+
+<view class="container loading-wrap" wx:if="{{loading}}">
+  <text class="muted">加载中…</text>
+</view>
