@@ -1,6 +1,8 @@
 <view class="container">
-  <view class="page-header">
-    <text class="page-title">积分历史</text>
+  <view class="hero-card score-header">
+    <view class="tag">积分明细</view>
+    <view class="score-header-title">积分历史</view>
+    <view class="score-header-sub">所有积分变动记录</view>
   </view>
 
   <view wx:if="{{loading}}" class="empty-tip">
@@ -13,6 +15,11 @@
 
   <view wx:else class="log-list">
     <view wx:for="{{logs}}" wx:key="id" class="log-item">
+      <view class="log-icon-wrap">
+        <text class="log-icon {{item.delta >= 0 ? 'log-icon-plus' : 'log-icon-minus'}}">
+          {{item.delta >= 0 ? '+' : '-'}}
+        </text>
+      </view>
       <view class="log-left">
         <view class="log-reason">{{item.reason}}</view>
         <view class="log-time">{{item.createdAt}}</view>

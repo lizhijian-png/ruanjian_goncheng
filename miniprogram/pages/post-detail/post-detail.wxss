@@ -224,23 +224,7 @@
   padding: 8rpx 0;
 }
 
-/* ===== 人员选择弹层 ===== */
-.person-picker-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.45);
-  z-index: 100;
-  display: flex;
-  align-items: flex-end;
-}
-
-.person-picker-panel {
-  width: 100%;
-  background: #fff;
-  border-radius: 32rpx 32rpx 0 0;
-  padding: 32rpx 32rpx 48rpx;
-}
-
+/* ===== 人员选择弹出标题用 ===== */
 .person-picker-title {
   font-size: 32rpx;
   font-weight: 700;

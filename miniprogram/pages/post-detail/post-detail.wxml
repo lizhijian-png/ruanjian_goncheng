@@ -119,8 +119,8 @@
     </block>
 
     <!-- 人员选择弹层 -->
-    <view wx:if="{{showPersonPicker}}" class="person-picker-overlay">
-      <view class="person-picker-panel">
+    <view wx:if="{{showPersonPicker}}" class="mask-overlay mask-visible" style="display:flex;align-items:flex-end;">
+      <view class="bottom-sheet sheet-visible" style="position:relative;z-index:101;">
         <view class="person-picker-title">选择要评价的人</view>
         <block wx:for="{{evalTargets}}" wx:key="userId">
           <view

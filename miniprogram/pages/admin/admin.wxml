@@ -1,26 +1,30 @@
 <view class="container">
-  <view class="header">
-    <text class="title">任务全量管理</text>
-    <text class="subtitle">共 {{posts.length}} 条记录</text>
+  <view class="hero-card admin-header">
+    <view class="tag">管理后台</view>
+    <view class="admin-header-title">任务全量管理</view>
+    <view class="admin-header-sub">共 {{posts.length}} 条记录</view>
   </view>
 
   <view class="post-list">
-    <view class="post-card" wx:for="{{posts}}" wx:key="id">
+    <view class="post-card admin-post-card" wx:for="{{posts}}" wx:key="id">
       <view class="post-content" bindtap="goDetail" data-id="{{item.id}}">
         <view class="post-title">{{item.title}}</view>
-        <view class="post-info">发布人: {{item.publisher}} | 状态: {{item.status}}</view>
+        <view class="post-meta-row">
+          <view class="meta-chip">发布人: {{item.publisher}}</view>
+          <view class="meta-chip">状态: {{item.status}}</view>
+        </view>
         <view class="post-time">创建于: {{item.createdAt}}</view>
       </view>
       <view class="post-actions">
         <view class="audit-tag {{item.auditStatus === '正常' ? 'tag-normal' : 'tag-ban'}}">
-          审核: {{item.auditStatus}}
+          {{item.auditStatus}}
         </view>
         <button 
-          class="btn-toggle {{item.auditStatus === '正常' ? 'btn-warn' : 'btn-safe'}}" 
+          class="ghost-btn toggle-btn {{item.auditStatus === '正常' ? 'btn-warn' : 'btn-safe'}}" 
           catchtap="toggleAuditStatus" 
           data-id="{{item.id}}" 
           data-current="{{item.auditStatus}}">
-          设为{{item.auditStatus === '正常' ? '违规' : '正常'}}
+          {{item.auditStatus === '正常' ? '标记违规' : '恢复正常'}}
         </button>
       </view>
     </view>
