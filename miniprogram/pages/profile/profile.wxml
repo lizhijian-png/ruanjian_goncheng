@@ -82,10 +82,10 @@
 </view>
 
 <!-- 遮罩 -->
-<view class="modal-mask {{settingsVisible ? 'mask-visible' : ''}}" bindtap="closeSettings"></view>
+<view class="mask-overlay {{settingsVisible ? 'mask-visible' : ''}}" bindtap="closeSettings"></view>
 
 <!-- 设置弹窗 -->
-<view class="settings-modal {{settingsVisible ? 'modal-visible' : ''}}">
+<view class="bottom-sheet {{settingsVisible ? 'sheet-visible' : ''}}">
   <view class="modal-header">
     <view class="modal-title">编辑个人信息</view>
     <view class="modal-close" bindtap="closeSettings">×</view>
